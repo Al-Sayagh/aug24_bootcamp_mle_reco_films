@@ -1,0 +1,31 @@
+# Ignorer les fichiers dans data/raw/
+data/raw/*.csv
+
+# Ignorer les données générées ou traitées
+data/processed/*
+
+# Fichiers de log
+*.log
+
+# Environnements virtuels Python
+venv/
+
+# Caches Python
+__pycache__/
+
+# Fichier de configuration
+.env
+
+# DVC caches et métadonnées
+.dvc/
+
+# Visual Studio Code
+.vscode/
+
+# Fichiers temporaires
+*.tmp
+*.swp
+
+# Sauvegardes
+*.bak
+*.old

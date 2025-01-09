@@ -1,0 +1,5 @@
+# Normaliser les fins de ligne pour tous les fichiers texte
+* text=auto
+
+# Forcer LF pour les fichiers Python
+*.py text eol=lf
