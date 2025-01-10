@@ -1,14 +1,15 @@
-﻿import pandas as pd
-import numpy as np
-from surprise import Dataset, Reader, SVD
-from surprise.model_selection import cross_validate
-from pathlib import Path
-import joblib
-from typing import List, Optional, Dict, Any
+﻿import json
 import logging
+from pathlib import Path
+from surprise import SVD, Dataset, Reader
+from surprise.model_selection import cross_validate
+import pandas as pd
+import numpy as np
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import threading
 from threading import Lock
+import joblib  # Ajout de cet import
 
 from app.config import settings
 from app.models import MovieRecommendation, ModelMetrics
@@ -29,19 +30,33 @@ console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - 
 console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
 
-
 class MovieRecommender:
     """Système de recommandation de films utilisant l'algorithme SVD avec gestion des mises à jour."""
 
+    # Paramètres par défaut optimisés par GridSearch
+    DEFAULT_PARAMS = {
+        'n_factors': 175,
+        'n_epochs': 40,
+        'lr_all': 0.003,  # Paramètre optimisé pour RMSE
+        'reg_all': 0.07,
+        'random_state': 42
+    }
+
     def __init__(self):
-        """Initialise le système de recommandation avec gestion du state."""
+        """Initialise le système de recommandation avec les meilleurs paramètres."""
+        # Essaie de charger les paramètres optimisés, sinon utilise les valeurs par défaut
+        params = self._load_optimized_parameters()
+        
         self.model = SVD(
-            n_factors=100,
-            n_epochs=20,
-            lr_all=0.005,
-            reg_all=0.02,
-            random_state=42
+            n_factors=params.get('n_factors', self.DEFAULT_PARAMS['n_factors']),
+            n_epochs=params.get('n_epochs', self.DEFAULT_PARAMS['n_epochs']),
+            lr_all=params.get('lr_all', self.DEFAULT_PARAMS['lr_all']),
+            reg_all=params.get('reg_all', self.DEFAULT_PARAMS['reg_all']),
+            random_state=self.DEFAULT_PARAMS['random_state']
         )
+
+        logger.info(f"Modèle initialisé avec les paramètres: {params if params else self.DEFAULT_PARAMS}")
+        
         self.data = None
         self.trainset = None
         self.df = None
@@ -49,9 +64,27 @@ class MovieRecommender:
         self.last_training_time = None
         self.user_mapping = {}
         self.reader = None
-        self.state_lock = Lock()  # Pour la thread-safety
+        self.state_lock = Lock()
         self._last_update = None
         self._is_training = False
+
+    def _load_optimized_parameters(self) -> Dict:
+        """Charge les paramètres optimisés depuis le fichier JSON."""
+        try:
+            json_path = Path('data/processed/svd_optimization.json')
+            if json_path.exists():
+                with open(json_path, 'r') as f:
+                    data = json.load(f)
+                    # Utilise les paramètres optimisés pour RMSE par défaut
+                    params = data['best_parameters']['rmse']
+                    logger.info(f"Paramètres optimisés chargés depuis {json_path}")
+                    return params
+            else:
+                logger.info("Utilisation des paramètres par défaut (fichier d'optimisation non trouvé)")
+                return {}
+        except Exception as e:
+            logger.warning(f"Utilisation des paramètres par défaut (erreur lors du chargement: {e})")
+            return {}
 
     def needs_update(self) -> bool:
         """Vérifie si le modèle nécessite une mise à jour."""

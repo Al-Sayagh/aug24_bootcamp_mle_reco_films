@@ -14,11 +14,11 @@ from threading import Lock
 import subprocess
 import time
 import json
-from pathlib import Path
 
-from .recommender import MovieRecommender
-from .config import settings
-from .models import MovieRecommendation, ModelMetrics
+# Imports de vos modules
+from app.recommender import MovieRecommender
+from app.config import settings
+from app.models import MovieRecommendation, ModelMetrics
 
 # Configuration du logging
 logger = logging.getLogger(__name__)
