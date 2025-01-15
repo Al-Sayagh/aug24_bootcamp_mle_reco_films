@@ -9,6 +9,7 @@ from typing import Dict, Any
 from datetime import datetime
 import itertools
 import time
+import mlflow
 
 # Configuration du logging
 logger = logging.getLogger(__name__)
@@ -102,19 +103,32 @@ class SVDOptimizer:
             logger.info(f"Début de la recherche sur grille à {datetime.now().strftime('%H:%M:%S')}")
             
             # Création du GridSearchCV avec un callback pour le logging
-            gs = GridSearchCV(
-                SVD,
-                self.param_grid,
-                measures=['rmse', 'mae'],
-                cv=5,
-                n_jobs=-1,
-                joblib_verbose=2  # Augmenté pour plus de détails
-            )
+            mlflow.set_experiment("SVD Hyperparameter Optimization")
             
-            # Fit avec progression
-            logger.info("Démarrage de l'entraînement...")
-            gs.fit(self.data)
+            with mlflow.start_run(run_name="GridSearch-SVD"):
+                gs = GridSearchCV(
+                    SVD,
+                    self.param_grid,
+                    measures=['rmse', 'mae'],
+                    cv=5,
+                    n_jobs=-1,
+                    joblib_verbose=2  # Augmenté pour plus de détails
+                )
             
+                # Fit avec progression
+                logger.info("Démarrage de l'entraînement...")
+                gs.fit(self.data)
+                
+                # Best parameters recording
+                mlflow.log_params(gs.best_params['rmse'])
+                mlflow.log_metric("best_rmse", gs.best_score['rmse'])
+                mlflow.log_metric("best_mae", gs.best_score['mae'])
+
+                # Artifacts recording
+                mlflow.log_artifact("gridsearch.log")
+
+                logger.info("Optimisation terminée et enregistrée dans MLflow.")
+
             # Logging des résultats
             self.best_params_rmse = gs.best_params['rmse']
             self.best_params_mae = gs.best_params['mae']

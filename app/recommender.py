@@ -10,7 +10,8 @@ from datetime import datetime
 import threading
 from threading import Lock
 import joblib  # Ajout de cet import
-
+import mlflow
+import mlflow.sklearn
 from app.config import settings
 from app.models import MovieRecommendation, ModelMetrics
 
@@ -142,6 +143,14 @@ class MovieRecommender:
 
                 self.model.fit(self.trainset)
 
+                # Mlflow recording
+                mlflow.set_experiment("Movie Recommendation System")
+                with mlflow.start_run(run_name="Train-SVD-{0}".format(start_time.strftime('%Y%m%d-%H%M%S'))):
+                    mlflow.log_params(self.model.__dict__)
+                    mlflow.log_metric("training_time", (datetime.now() - start_time).total_seconds())
+                    joblib.dump(self.model, settings.MODEL_PATH)
+                    mlflow.sklearn.log_model(self.model, artifact_path="SVD-model")
+                
                 # Sauvegarde du modèle
                 model_dir = Path(settings.MODEL_PATH).parent
                 model_dir.mkdir(parents=True, exist_ok=True)

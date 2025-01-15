@@ -14,6 +14,7 @@ from threading import Lock
 import subprocess
 import time
 import json
+import mlflow
 
 # Imports de vos modules
 from app.recommender import MovieRecommender
@@ -344,7 +345,15 @@ async def get_model_metrics():
     """Récupère les métriques de performance du modèle."""
     try:
         metrics = await recommender.evaluate()
+        mlflow.set_experiment("Movie Recommendation System")
+        with mlflow.start_run(run_name="Model Evaluation - {0}".format(datetime.now().strftime('%Y%m%d-%H%M%S'))):
+            mlflow.log_metric("rmse", metrics.rmse)
+            mlflow.log_metric("mae", metrics.mae)
+            mlflow.log_metric("training_time", metrics.training_time)
+            mlflow.log_param("n_users", metrics.nombre_utilisateurs)
+            mlflow.log_param("n_items", metrics.nombre_films)
         return metrics
+    
     except Exception as e:
         logger.error(f"Erreur lors du calcul des métriques: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
