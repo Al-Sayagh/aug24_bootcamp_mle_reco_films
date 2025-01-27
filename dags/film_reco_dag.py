@@ -106,7 +106,7 @@ def generate_recommendations():
     recommender.df = pd.read_csv("/data/processed/df_clean.csv")
     
     # Par exemple pour l'utilisateur 10005, on demande 5 recommandations
-    recommendations = asyncio.run(rec.recommend(id_utilisateur=10005, n=5))
+    recommendations = asyncio.run(recommender.recommend(id_utilisateur=10005, n=5))
     
     if recommendations:
         print("Recommandations pour l'utilisateur 10005 :")
