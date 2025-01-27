@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     
     ALLOWED_ORIGINS: list[str] = ["http://localhost:8080", "http://localhost:3000"]
 
+    # Définir les paramètres airflow
+    airflow_uid: str = "501" 
+    airflow_gid: str = "0" 
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
