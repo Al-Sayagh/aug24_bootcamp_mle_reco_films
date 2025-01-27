@@ -1,6 +1,5 @@
-﻿from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional
 
 class MovieRecommendation(BaseModel):
     titre: str
@@ -19,4 +18,4 @@ class ModelMetrics(BaseModel):
 
 class User(BaseModel):
     id: str
-    nom: str  # Si disponible dans vos données
+    nom: str  
