@@ -1,5 +1,4 @@
-﻿from fastapi import FastAPI, HTTPException, status, Depends, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
@@ -14,17 +13,23 @@ from threading import Lock
 import subprocess
 import time
 import json
+from contextlib import asynccontextmanager
+import mlflow
 
-# Imports de vos modules
+# Import local
 from app.recommender import MovieRecommender
 from app.config import settings
-from app.models import MovieRecommendation, ModelMetrics
+from app.models import ModelMetrics
 
-# Configuration du logging
+# Configurer le logging
+import builtins
+if not hasattr(builtins, 'open'):
+    builtins.open = open
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Handler pour le fichier de log
+# Configurer un handler pour le fichier de log
 file_handler = logging.FileHandler('api.log', mode='a', encoding='utf-8')
 file_handler.setLevel(logging.DEBUG)
 file_formatter = logging.Formatter(
@@ -33,19 +38,71 @@ file_formatter = logging.Formatter(
 file_handler.setFormatter(file_formatter)
 logger.addHandler(file_handler)
 
-# Handler pour la console
+# Configurer un handler pour la console
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        # Phase de démarrage
+        logger.info("Démarrage de l'application - Initialisation du système")
+
+        logger.info("Phase 1: Chargement des données")
+        await recommender.load_data()
+        logger.info("Données chargées avec succès")
+
+        logger.info("Phase 2: Initialisation du gestionnaire d'utilisateurs")
+        await user_manager.refresh_users()
+
+        logger.info("Phase 3: Entraînement du modèle")
+        await recommender.train(force=True)
+
+        logger.info("Démarrage de la surveillance des fichiers")
+        user_manager.watcher.start()
+
+        logger.info("Système initialisé et prêt à l'emploi")
+        yield  # Application en cours d'exécution
+    except Exception as e:
+        logger.critical(f"Erreur critique lors de l'initialisation: {str(e)}", exc_info=True)
+        raise RuntimeError(f"Échec de l'initialisation du système: {str(e)}")
+    finally:
+        # Phase d'arrêt
+        cleanup_logging()
+        print("Application arrêtée proprement.")
+        user_manager.watcher.stop()
+
+# Créer l'application FastAPI avec gestionnaire lifespan
+app = FastAPI(
+    title="Système de Recommandation de Films",
+    description="API de recommandation de films basée sur l'algorithme SVD.",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    lifespan=lifespan
+)
+
+# Configurer CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+def cleanup_logging():
+    for handler in logger.handlers:
+        handler.close()
+        logger.removeHandler(handler)
 
 class UserResponse(BaseModel):
     id: str
     nom: str
     nb_films_vus: Optional[int] = None
-
 
 class RecommendationRequest(BaseModel):
     n_recommendations: int = Field(
@@ -55,11 +112,9 @@ class RecommendationRequest(BaseModel):
         description="Nombre de recommandations souhaitées"
     )
 
-
 class PaginationParams(BaseModel):
     skip: int = Field(default=0, ge=0)
     limit: int = Field(default=10, ge=1, le=100)
-
 
 class CSVWatcher:
     def __init__(self, csv_path: str, callback, check_interval: int = 300):
@@ -111,11 +166,12 @@ class CSVWatcher:
 
     def stop(self):
         """Arrête la surveillance."""
-        logger.info("Arrêt de la surveillance du CSV")
-        self.should_run = False
-        if self._thread:
-            self._thread.join(timeout=1)
-
+        try:
+            self.should_run = False
+            if self._thread and self._thread.is_alive():
+                self._thread.join(timeout=1)
+        except Exception as e:
+            print(f"Erreur ignorée lors de l'arrêt de la surveillance: {e}")
 
 class UserManager:
     def __init__(self, recommender: Optional[MovieRecommender] = None):
@@ -124,10 +180,10 @@ class UserManager:
         self._users: Dict[str, Dict[str, Any]] = {}
         self._last_update = None
         self.update_lock = Lock()
-        self.csv_path = "data/raw/df_demonstration.csv"
-        self.json_path = "data/processed/users.json"
+        self.csv_path = "/data/raw/df_demonstration.csv"
+        self.json_path = "/data/processed/users.json"
         self.recommender = recommender
-        
+
         self.watcher = CSVWatcher(
             csv_path=self.csv_path,
             callback=self._handle_csv_changes,
@@ -139,16 +195,16 @@ class UserManager:
         logger.info("Changements détectés dans le CSV - Mise à jour des données")
         try:
             python_path = os.path.join(os.path.dirname(sys.executable), "python")
-            script_path = os.path.abspath("app/extract_user_info.py")
-            
+            script_path = os.path.abspath("/app/extract_user_info.py")
+
             await asyncio.to_thread(lambda: subprocess.run([python_path, script_path], check=True))
             await self._load_from_json()
-            
+
             if self.recommender:
-                logger.info("Mise à jour du recommender...")
+                logger.info("Mise à jour du système de recommendation...")
                 await self.recommender.load_data()
                 await self.recommender.train(force=True)
-            
+
             logger.info("Mise à jour réussie suite aux changements du CSV")
         except Exception as e:
             logger.error(f"Erreur lors de la mise à jour après changement CSV: {e}")
@@ -175,19 +231,19 @@ class UserManager:
     async def refresh_users(self, df=None):
         """Rafraîchit la liste des utilisateurs de manière asynchrone."""
         logger.debug("Début de la mise à jour des utilisateurs")
-        
+
         async with asyncio.Lock():
             try:
                 python_path = os.path.join(os.path.dirname(sys.executable), "python")
-                script_path = os.path.abspath("app/extract_user_info.py")
-                
+                script_path = os.path.abspath("/app/extract_user_info.py")
+
                 await asyncio.to_thread(lambda: subprocess.run([python_path, script_path], check=True))
                 await self._load_from_json()
                 self.watcher.start()
 
                 if self.recommender and df is not None:
                     await self.recommender.load_data()
-                
+
                 logger.info("Mise à jour des utilisateurs terminée avec succès")
             except Exception as e:
                 logger.error(f"Erreur lors de la mise à jour des utilisateurs: {e}")
@@ -213,61 +269,17 @@ class UserManager:
         return self._users.get(str(user_id))
 
     def __del__(self):
-        """Cleanup lors de la destruction de l'instance."""
-        if hasattr(self, 'watcher'):
-            self.watcher.stop()
+        """Nettoyage lors de la destruction de l'instance."""
+        try:
+            if hasattr(self, 'watcher'):
+                self.watcher.stop()
+        except Exception as e:
+            print(f"Erreur ignorée lors du nettoyage du cache: {e}")
 
-
-# Création de l'application FastAPI
-app = FastAPI(
-    title="Système de Recommandation de Films",
-    description="API de recommandation de films basée sur l'algorithme SVD.",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# Configuration CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
-
-# Initialisation des composants de manière synchronisée
 recommender = MovieRecommender()
 user_manager = UserManager(recommender=recommender)
 
-
-async def startup_event_handler():
-    """Initialisation du système au démarrage de manière asynchrone."""
-    try:
-        logger.info("Démarrage de l'application - Initialisation du système")
-
-        logger.info("Phase 1: Chargement des données")
-        await recommender.load_data()
-        logger.info("Données chargées avec succès")
-
-        logger.info("Phase 2: Initialisation du gestionnaire d'utilisateurs")
-        await user_manager.refresh_users()
-
-        logger.info("Phase 3: Entraînement du modèle")
-        await recommender.train(force=True)
-
-        logger.info("Démarrage de la surveillance des fichiers")
-        user_manager.watcher.start()
-
-        logger.info("Système initialisé et prêt à l'emploi")
-    except Exception as e:
-        logger.critical(f"Erreur critique lors de l'initialisation: {str(e)}", exc_info=True)
-        raise RuntimeError(f"Échec de l'initialisation du système: {str(e)}")
-
-
-app.add_event_handler("startup", startup_event_handler)
-
-
+# Définition des endpoints
 @app.get("/", tags=["Général"])
 async def root():
     """Page d'accueil de l'API."""
@@ -277,7 +289,6 @@ async def root():
         "statut": "opérationnel",
         "timestamp": datetime.now().isoformat()
     }
-
 
 @app.get("/users/available", response_model=Dict[str, Any], tags=["Utilisateurs"])
 async def get_available_users(
@@ -297,7 +308,6 @@ async def get_available_users(
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des utilisateurs: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erreur lors de la récupération des utilisateurs")
-
 
 @app.get("/recommendations/{id_utilisateur}", response_model=Dict[str, Any], tags=["Recommandations"])
 async def get_recommendations(
@@ -338,17 +348,22 @@ async def get_recommendations(
         logger.error(f"Erreur lors de la génération des recommandations: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.get("/metrics", response_model=ModelMetrics, tags=["Modèle"])
 async def get_model_metrics():
     """Récupère les métriques de performance du modèle."""
     try:
         metrics = await recommender.evaluate()
+        mlflow.set_experiment("Movie Recommandation System")
+        with mlflow.start_run(run_name="Evaluate-SVD-{0}".format(datetime.now().strftime('%Y%m%d-%H%M%S'))):
+            mlflow.log_metric("rmse", metrics.rmse)
+            mlflow.log_metric("mae", metrics.mae)
+            mlflow.log_metric("training_time", metrics.training_time)
+            mlflow.log_param("n_users", metrics.nombre_utilisateurs)
+            mlflow.log_param("n_items", metrics.nombre_films)
         return metrics
     except Exception as e:
         logger.error(f"Erreur lors du calcul des métriques: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.post("/refresh", tags=["Système"])
 async def refresh_system():
