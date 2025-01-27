@@ -12,4 +12,4 @@ ETAPE A AJOUTER AU DAG
 
 QUESTIONS
 - Where does authentication go ?
-- Do we need to add extract film info ?
+- Do we need to add extract_film_info ?
