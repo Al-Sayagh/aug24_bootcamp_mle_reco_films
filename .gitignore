@@ -29,3 +29,6 @@ __pycache__/
 # Sauvegardes
 *.bak
 *.old
+
+# Autres
+.DS_Store
