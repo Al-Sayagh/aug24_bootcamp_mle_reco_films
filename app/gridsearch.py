@@ -5,29 +5,34 @@ from surprise import SVD, Dataset, Reader
 from surprise.model_selection import GridSearchCV
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
 from datetime import datetime
-import itertools
 import time
+import mlflow
 
-# Configuration du logging
+# Configurer le logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    filename='gridsearch.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s'
-)
+logger.setLevel(logging.INFO)
 
-# Ajout d'un handler pour la console
+file_path = "gridsearch.log"
+file_handler = logging.FileHandler(file_path)
+file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+))
+logger.addHandler(file_handler)
+
+# Ajouter un handler pour la console
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
+logger.info("Cette information doit aller à la fois sur le terminal et dans gridsearch.log")
+
 class SVDOptimizer:
     def __init__(self):
-        # Grille optimisée basée sur les meilleurs résultats précédents
+        # Définir la grille optimisée basée sur les meilleurs résultats précédents
         self.param_grid = {
             'n_factors': [150, 175],    # Centré autour du meilleur résultat (150)
             'n_epochs': [40, 45],       # Centré autour du meilleur résultat (40)
@@ -40,11 +45,11 @@ class SVDOptimizer:
         self.best_score_mae = None
         self.cv_results = None
         
-        # Calcul du nombre total de combinaisons
+        # Calculer le nombre total de combinaisons
         self.total_combinations = np.prod([len(values) for values in self.param_grid.values()])
         logger.info(f"Nombre total de combinaisons à tester: {self.total_combinations}")
         
-        # Log des paramètres de recherche
+        # Logger les paramètres de recherche
         logger.info("Espace de recherche des paramètres (optimisé):")
         for param, values in self.param_grid.items():
             logger.info(f"  {param}: {values}")
@@ -55,13 +60,13 @@ class SVDOptimizer:
             start_time = time.time()
             logger.info("Début du chargement des données...")
             
-            df = pd.read_csv('data/raw/df_demonstration.csv', dtype={'id_utilisateur': str})
+            df = pd.read_csv('/data/raw/df_demonstration.csv', dtype={'id_utilisateur': str})
             
             logger.info(f"Dimensions du DataFrame: {df.shape}")
             logger.info(f"Nombre d'utilisateurs uniques: {df['id_utilisateur'].nunique()}")
             logger.info(f"Nombre de films uniques: {df['titre_film'].nunique()}")
             
-            # Statistiques sur les scores de pertinence
+            # Afficher les statistiques sur les scores de pertinence
             logger.info("Statistiques des scores de pertinence:")
             logger.info(f"  Min: {df['score_pertinence'].min():.2f}")
             logger.info(f"  Max: {df['score_pertinence'].max():.2f}")
@@ -101,21 +106,34 @@ class SVDOptimizer:
             start_time = time.time()
             logger.info(f"Début de la recherche sur grille à {datetime.now().strftime('%H:%M:%S')}")
             
-            # Création du GridSearchCV avec un callback pour le logging
-            gs = GridSearchCV(
-                SVD,
-                self.param_grid,
-                measures=['rmse', 'mae'],
-                cv=5,
-                n_jobs=-1,
-                joblib_verbose=2  # Augmenté pour plus de détails
-            )
+            # Créer le GridSearchCV avec un callback pour le logging
+            mlflow.set_experiment("SVD Hyperparameters Optimization")
             
-            # Fit avec progression
-            logger.info("Démarrage de l'entraînement...")
-            gs.fit(self.data)
+            with mlflow.start_run(run_name="GridSearch-SVD"):
+                gs = GridSearchCV(
+                    SVD,
+                    self.param_grid,
+                    measures=['rmse', 'mae'],
+                    cv=5,
+                    n_jobs=-1,
+                    joblib_verbose=2  # Augmenté pour plus de détails
+                )
             
-            # Logging des résultats
+                # Entraîner le modèle avec progression
+                logger.info("Démarrage de l'entraînement...")
+                gs.fit(self.data)
+
+                # Enregistrer les meilleurs paramètres
+                mlflow.log_params(gs.best_params['rmse'])
+                mlflow.log_metric("best_rmse", gs.best_score['rmse'])
+                mlflow.log_metric("best_mae", gs.best_score['mae'])
+
+                # Enregistrer les artifacts
+                mlflow.log_artifact(file_path)
+
+                logger.info("Optimisation terminée et enregistrée dans MLflow.")
+            
+            # Logger les résultats
             self.best_params_rmse = gs.best_params['rmse']
             self.best_params_mae = gs.best_params['mae']
             self.best_score_rmse = gs.best_score['rmse']
@@ -128,7 +146,7 @@ class SVDOptimizer:
             logger.info(f"Meilleurs paramètres (MAE): {json.dumps(self.best_params_mae, indent=2)}")
             logger.info(f"Meilleur score MAE: {self.best_score_mae:.4f}")
             
-            # Log des résultats détaillés
+            # Logger les résultats détaillés
             logger.info("\nTop 5 des meilleures combinaisons (RMSE):")
             sorted_results_rmse = sorted(
                 zip(gs.cv_results['params'], gs.cv_results['mean_test_rmse']),
@@ -201,7 +219,7 @@ class SVDOptimizer:
                 }
             }
             
-            output_path = Path('data/processed/svd_optimization.json')
+            output_path = Path('/data/processed/svd_optimization.json')
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
             with open(output_path, 'w', encoding='utf-8') as f:
