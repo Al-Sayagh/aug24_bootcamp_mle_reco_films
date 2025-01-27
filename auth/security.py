@@ -1,4 +1,3 @@
-# security.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
@@ -13,12 +12,12 @@ import os
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-# Créez le dossier 'auth' s'il n'existe pas
+# Créer le dossier 'auth' s'il n'existe pas
 log_dir = os.path.dirname(__file__)  # Obtient le répertoire du script actuel
 if not os.path.exists(log_dir):
     os.makedirs(log_dir)
 
-# Modifiez le chemin du fichier de log pour qu'il soit dans le même dossier que le script
+# Modifier le chemin du fichier de log pour qu'il soit dans le même dossier que le script
 log_file_path = os.path.join(log_dir, "security.log")
 file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8')
 file_handler.setLevel(logging.DEBUG)
