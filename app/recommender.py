@@ -1,20 +1,21 @@
-﻿import json
 import logging
-from pathlib import Path
-from surprise import SVD, Dataset, Reader
-from surprise.model_selection import cross_validate
+import json
+import joblib 
+import mlflow
 import pandas as pd
 import numpy as np
-from typing import List, Optional, Dict, Any
+from pathlib import Path
 from datetime import datetime
-import threading
+from typing import List, Dict
 from threading import Lock
-import joblib  # Ajout de cet import
+from surprise import SVD, Dataset, Reader
+from surprise.model_selection import cross_validate
 
+# Import local
 from app.config import settings
 from app.models import MovieRecommendation, ModelMetrics
 
-# Configuration du logging
+# Configurer le logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
@@ -33,7 +34,7 @@ logger.addHandler(console_handler)
 class MovieRecommender:
     """Système de recommandation de films utilisant l'algorithme SVD avec gestion des mises à jour."""
 
-    # Paramètres par défaut optimisés par GridSearch
+    # Définir les paramètres par défaut optimisés par GridSearch
     DEFAULT_PARAMS = {
         'n_factors': 175,
         'n_epochs': 40,
@@ -43,8 +44,8 @@ class MovieRecommender:
     }
 
     def __init__(self):
-        """Initialise le système de recommandation avec les meilleurs paramètres."""
-        # Essaie de charger les paramètres optimisés, sinon utilise les valeurs par défaut
+        """Initialise le système de recommandation avec les (éventuels) meilleurs paramètres."""
+        # Essayer de charger les paramètres optimisés, sinon utiliser les valeurs par défaut
         params = self._load_optimized_parameters()
         
         self.model = SVD(
@@ -54,12 +55,11 @@ class MovieRecommender:
             reg_all=params.get('reg_all', self.DEFAULT_PARAMS['reg_all']),
             random_state=self.DEFAULT_PARAMS['random_state']
         )
-
         logger.info(f"Modèle initialisé avec les paramètres: {params if params else self.DEFAULT_PARAMS}")
         
+        self.df = None
         self.data = None
         self.trainset = None
-        self.df = None
         self.metrics = None
         self.last_training_time = None
         self.user_mapping = {}
@@ -71,11 +71,11 @@ class MovieRecommender:
     def _load_optimized_parameters(self) -> Dict:
         """Charge les paramètres optimisés depuis le fichier JSON."""
         try:
-            json_path = Path('data/processed/svd_optimization.json')
+            json_path = Path('/data/processed/svd_optimization.json')
             if json_path.exists():
-                with open(json_path, 'r') as f:
+                with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    # Utilise les paramètres optimisés pour RMSE par défaut
+                    # Utiliser les paramètres optimisés pour RMSE par défaut
                     params = data['best_parameters']['rmse']
                     logger.info(f"Paramètres optimisés chargés depuis {json_path}")
                     return params
@@ -90,7 +90,6 @@ class MovieRecommender:
         """Vérifie si le modèle nécessite une mise à jour."""
         if not self._last_update:
             return True
-        
         try:
             csv_mtime = Path(settings.DATA_PATH).stat().st_mtime
             return csv_mtime > self._last_update.timestamp()
@@ -98,31 +97,80 @@ class MovieRecommender:
             logger.error(f"Erreur lors de la vérification de mise à jour: {e}")
             return True
 
-    async def load_data(self) -> None:
-        """Charge et prépare les données pour l'entraînement du modèle de manière thread-safe."""
+    def load_csv(self) -> None:
+        """
+        Lit le CSV depuis `settings.DATA_PATH` et le stocke dans self.df.
+        Ne contient que la lecture du CSV, sans la préparation Surprise.
+        """
         with self.state_lock:
             try:
-                logger.info(f"Début du chargement des données depuis {settings.DATA_PATH}")
+                logger.info(f"Début du chargement des données depuis {settings.DATA_PATH}...")
                 self.df = pd.read_csv(settings.DATA_PATH, dtype={'id_utilisateur': str})
-
-                required_columns = [
-                    'id_utilisateur', 'titre_film', 'score_pertinence',
-                    'realisateurs_principaux', 'noms_acteurs', 'note_moyenne_imdb'
-                ]
-                self._verify_columns(required_columns)
-                await self._prepare_data()
-                self._create_user_mapping()
-                self._setup_surprise_reader()
-                self._log_data_statistics()
-                
                 self._last_update = datetime.now()
-
+                logger.info(f"CSV chargé: {len(self.df)} lignes.")
             except Exception as e:
                 logger.error(f"Erreur lors du chargement des données: {e}", exc_info=True)
                 raise
 
+    async def prepare_data(self) -> None:
+        """Prépare les données pour l'entraînement du modèle (contrôle de colonnes, nettoyage, création du trainset) 
+        puis sauvegarde le trainset dans data/processed de manière asynchrone et thread-safe."""
+        with self.state_lock:
+            try:
+                if self.df is None:
+                    raise ValueError("Le DataFrame est vide (self.df est None). Appelez d'abord load_csv().")
+
+                # Vérifier la présence des colonnes requises
+                required_columns = [
+                    'id_utilisateur', 'titre_film', 'score_pertinence',
+                    'realisateurs_principaux', 'noms_acteurs', 'note_moyenne_imdb'
+                ]
+                missing_cols = [c for c in required_columns if c not in self.df.columns]
+                if missing_cols:
+                    raise ValueError(f"Colonnes manquantes dans le dataset: {missing_cols}")
+
+                # Nettoyer / préparer
+                initial_size = len(self.df)
+                self.df['id_film'] = self.df['id_film'].astype(int)
+                self.df['score_pertinence'] = pd.to_numeric(self.df['score_pertinence'], errors='coerce')
+                self.df.dropna(subset=['score_pertinence'], inplace=True)
+                dropped_rows = initial_size - len(self.df)
+                if dropped_rows > 0:
+                    logger.warning(f"{dropped_rows} lignes supprimées car score_pertinence manquant")
+
+                # Créer un dictionnaire de mapping pour les IDs utilisateurs.
+                self.user_mapping = {str(uid): True for uid in self.df['id_utilisateur'].unique()}
+                logger.info(f"Mapping créé pour {len(self.user_mapping)} utilisateurs uniques")
+
+                # Configurer Surprise et préparer la donnée sous forme de trainset
+                score_min = self.df['score_pertinence'].min()
+                score_max = self.df['score_pertinence'].max()
+                self.reader = Reader(rating_scale=(score_min, score_max))
+
+                self.data = Dataset.load_from_df(
+                    self.df[['id_utilisateur', 'titre_film', 'score_pertinence']], 
+                    self.reader
+                )
+                self.trainset = self.data.build_full_trainset()
+
+                # Sauvegarder le trainset dans data/processed
+                out_path = Path("/data/processed/trainset_surprise.pkl")
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                joblib.dump(self.trainset, out_path)
+                logger.info(f"Trainset sauvegardé dans {out_path}.")
+
+                # Logger les statistiques
+                logger.info(f"Données préparées avec succès: {len(self.df)} évaluations.")
+                logger.info(f"Nombre d'utilisateurs uniques: {self.df['id_utilisateur'].nunique()}")
+                logger.info(f"Nombre de films uniques: {self.df['titre_film'].nunique()}")
+                logger.info(f"Score de pertinence moyen: {self.df['score_pertinence'].mean():.2f}")
+
+            except Exception as e:
+                logger.error(f"Erreur lors de la préparation des données: {e}", exc_info=True)
+                raise
+
     async def train(self, force: bool = False) -> None:
-        """Entraîne le modèle SVD avec gestion de la concurrence."""
+        """Entraîne le modèle SVD et l'enregistre, avec gestion de la concurrence."""
         if self._is_training and not force:
             logger.warning("Entraînement déjà en cours, ignoré.")
             return
@@ -135,18 +183,28 @@ class MovieRecommender:
 
                 self._is_training = True
                 if self.trainset is None:
-                    raise ValueError("Les données doivent être chargées avant l'entraînement")
+                    raise ValueError("Les données doivent être préparées avant l'entraînement (self.trainset est None).")
 
                 start_time = datetime.now()
                 logger.info("Début de l'entraînement du modèle SVD...")
 
                 self.model.fit(self.trainset)
 
-                # Sauvegarde du modèle
-                model_dir = Path(settings.MODEL_PATH).parent
-                model_dir.mkdir(parents=True, exist_ok=True)
-                joblib.dump(self.model, settings.MODEL_PATH)
-
+                # Enregistrer dans Mlflow
+                mlflow.set_experiment("Movie Recommandation System")
+                with mlflow.start_run(run_name="Train-SVD-{0}".format(start_time.strftime('%Y%m%d-%H%M%S'))):
+                    # Logger les paramètres du modèle
+                    mlflow.log_params(self.model.__dict__)
+                    # Logger la durée d'entraînement
+                    training_duration = (datetime.now() - start_time).total_seconds()
+                    mlflow.log_metric("training_time", training_duration)
+                    # Sauvegarder le modèle
+                    model_dir = Path(settings.MODEL_PATH).parent
+                    model_dir.mkdir(parents=True, exist_ok=True)
+                    joblib.dump(self.model, settings.MODEL_PATH)
+                    # Logger le modèle dans MLflow
+                    mlflow.sklearn.log_model(self.model, artifact_path="SVD-model")
+                    
                 self.last_training_time = (datetime.now() - start_time).total_seconds()
                 logger.info(f"Modèle entraîné et sauvegardé en {self.last_training_time:.2f} secondes")
 
@@ -156,57 +214,13 @@ class MovieRecommender:
             finally:
                 self._is_training = False
 
-    async def _prepare_data(self) -> None:
-        """Prépare les données de manière asynchrone."""
-        initial_size = len(self.df)
-
-        self.df['id_utilisateur'] = self.df['id_utilisateur'].astype(str)
-        self.df['id_film'] = self.df['id_film'].astype(int)
-        self.df['score_pertinence'] = pd.to_numeric(self.df['score_pertinence'], errors='coerce')
-
-        self.df = self.df.dropna(subset=['score_pertinence'])
-        dropped_rows = initial_size - len(self.df)
-
-        if dropped_rows > 0:
-            logger.warning(f"{dropped_rows} lignes supprimées car score_pertinence manquant")
-
-    def _verify_columns(self, required_columns: List[str]) -> None:
-        """Vérifie la présence des colonnes requises."""
-        missing_columns = [col for col in required_columns if col not in self.df.columns]
-        if missing_columns:
-            raise ValueError(f"Colonnes manquantes dans le dataset: {missing_columns}")
-
-    def _create_user_mapping(self) -> None:
-        """Crée un dictionnaire de mapping pour les IDs utilisateurs."""
-        self.user_mapping = {str(uid): True for uid in self.df['id_utilisateur'].unique()}
-        logger.info(f"Mapping créé pour {len(self.user_mapping)} utilisateurs uniques")
-
-    def _setup_surprise_reader(self) -> None:
-        """Configure le Reader Surprise et prépare les données."""
-        score_min = self.df['score_pertinence'].min()
-        score_max = self.df['score_pertinence'].max()
-        self.reader = Reader(rating_scale=(score_min, score_max))
-
-        self.data = Dataset.load_from_df(
-            self.df[['id_utilisateur', 'titre_film', 'score_pertinence']],
-            self.reader
-        )
-        self.trainset = self.data.build_full_trainset()
-
-    def _log_data_statistics(self) -> None:
-        """Enregistre les statistiques des données."""
-        logger.info(f"Données chargées avec succès: {len(self.df)} évaluations")
-        logger.info(f"Nombre d'utilisateurs uniques: {self.df['id_utilisateur'].nunique()}")
-        logger.info(f"Nombre de films uniques: {self.df['titre_film'].nunique()}")
-        logger.info(f"Score de pertinence moyen: {self.df['score_pertinence'].mean():.2f}")
-
     async def recommend(self, id_utilisateur: int, n: int = 10) -> List["MovieRecommendation"]:
-        """Génère des recommandations personnalisées de manière thread-safe."""
+        """Génère des recommandations personnalisées de manière thread-safe (exige trainset + modèle valides)."""
         with self.state_lock:
             try:
                 if self.needs_update():
                     logger.info("Mise à jour des données avant recommandation...")
-                    await self.load_data()
+                    self.load_csv()
                     await self.train()
 
                 user_id_str = str(id_utilisateur)
@@ -228,6 +242,7 @@ class MovieRecommender:
                     prediction = self.model.predict(user_id_str, film)
                     film_data = self.df[self.df['titre_film'] == film].iloc[0]
 
+                    # Exemple d'objet MovieRecommendation
                     recommandation = MovieRecommendation(
                         titre=film,
                         score_pertinence_predit=prediction.est,
@@ -251,10 +266,14 @@ class MovieRecommender:
                 raise
 
     async def evaluate(self) -> ModelMetrics:
-        """Évalue les performances du modèle de manière thread-safe."""
+        """Évalue les performances du modèle de manière thread-safe via cross-validation,
+        puis sauvegarde les metrics dans un fichier JSON sous /metrics/."""
         with self.state_lock:
             try:
                 logger.info("Évaluation du modèle en cours...")
+                if self.data is None or self.trainset is None:
+                    raise ValueError("Les données doivent être préparées avant l'évaluation.")
+                
                 results = cross_validate(
                     self.model,
                     self.data,
@@ -263,8 +282,8 @@ class MovieRecommender:
                     verbose=False
                 )
 
-                rmse = np.mean(results["test_rmse"])
-                mae = np.mean(results["test_mae"])
+                rmse = float(np.mean(results["test_rmse"]))
+                mae = float(np.mean(results["test_mae"]))
 
                 metrics = ModelMetrics(
                     rmse=rmse,
@@ -275,7 +294,16 @@ class MovieRecommender:
                     score_pertinence_moyen=self.trainset.global_mean
                 )
 
+                # Sauvegarde des métriques au format JSON
+                metrics_dir = Path("metrics")
+                metrics_dir.mkdir(parents=True, exist_ok=True)
+                metrics_path = metrics_dir / "model_metrics.json"
+                with open(metrics_path, "w", encoding="utf-8") as f:
+                    json.dump(metrics.dict(), f, indent=4, ensure_ascii=False)
+
+                logger.info(f"Métriques sauvegardées dans {metrics_path}")   
                 logger.info(f"Évaluation terminée - RMSE: {rmse:.4f}, MAE: {mae:.4f}")
+                
                 return metrics
 
             except Exception as e:
