@@ -2,12 +2,11 @@ import pandas as pd
 import json
 from datetime import datetime
 import logging
-import os
 from pathlib import Path
 import sys
-from typing import Dict, Any, List
+from typing import Dict, Any
 
-# Configuration du logging
+# Configurer le logging
 logging.basicConfig(
     filename='user_extractor.log',
     level=logging.INFO,
@@ -22,8 +21,8 @@ class UserExtractor:
         Initialise l'extracteur d'informations utilisateurs.
         Utilise des chemins relatifs par rapport à la racine du projet.
         """
-        self.input_path = Path("data/raw/df_demonstration.csv")
-        self.output_path = Path("data/processed/users.json")
+        self.input_path = Path("/data/raw/df_demonstration.csv")
+        self.output_path = Path("/data/processed/users.json")
         logger.info(f"Initialisation de l'extracteur avec {self.input_path}")
 
     def read_data(self) -> pd.DataFrame:
@@ -42,7 +41,7 @@ class UserExtractor:
             df = pd.read_csv(self.input_path)
             logger.info(f"Fichier lu avec succès - {len(df)} lignes")
             
-            # Vérification des colonnes requises
+            # Vérifier les colonnes requises
             required_columns = ['id_utilisateur', 'nom_utilisateur', 'titre_film', 'note_utilisateur']
             missing_columns = [col for col in required_columns if col not in df.columns]
             
@@ -65,7 +64,7 @@ class UserExtractor:
         try:
             logger.info("Début du traitement des données utilisateurs")
             
-            # Calculs statistiques par utilisateur
+            # Calculer les statistiques par utilisateur
             user_stats = df.groupby(['id_utilisateur', 'nom_utilisateur']).agg({
                 'titre_film': 'count',
                 'note_utilisateur': ['mean', 'min', 'max']
@@ -108,10 +107,10 @@ class UserExtractor:
         try:
             logger.info(f"Sauvegarde des données dans {self.output_path}")
             
-            # Création du répertoire si nécessaire
+            # Créer le répertoire si nécessaire
             self.output_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Sauvegarde du fichier JSON
+            # Sauvegarder le fichier JSON
             with open(self.output_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             
