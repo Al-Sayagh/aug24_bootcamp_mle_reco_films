@@ -13,14 +13,8 @@ venv/
 # Ignorer les caches Python
 __pycache__/
 
-# Ignorer les fichiers de configuration
+# Ignorer le fichier de configuration
 .env
-
-# Ignorer les caches et métadonnées DVC
-.dvc/
-
-# Ignorer les fichiers MF Flow
-mlruns/
 
 # Ignorer Visual Studio Code
 .vscode/
@@ -35,3 +29,13 @@ mlruns/
 
 # Ignorer le fichier DS_Store (macOS uniquement)
 .DS_Store
+
+# Ignorer les caches et métadonnées DVC
+.dvc/
+
+# Ignorer les fichiers ML Flow
+mlruns/
+
+# Ignorer les dossiers Airflow
+logs/
+plugins/
