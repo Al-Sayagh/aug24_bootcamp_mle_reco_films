@@ -4,31 +4,34 @@ data/raw/*.csv
 # Ignorer les données générées ou traitées
 data/processed/*
 
-# Fichiers de log
+# Ignorer les fichiers de log
 *.log
 
-# Environnements virtuels Python
+# Ignorer les environnements virtuels Python
 venv/
 
-# Caches Python
+# Ignorer les caches Python
 __pycache__/
 
-# Fichier de configuration
+# Ignorer les fichiers de configuration
 .env
 
-# DVC caches et métadonnées
+# Ignorer les caches et métadonnées DVC
 .dvc/
 
-# Visual Studio Code
+# Ignorer les fichiers MF Flow
+mlruns/
+
+# Ignorer Visual Studio Code
 .vscode/
 
-# Fichiers temporaires
+# Ignorer les fichiers temporaires
 *.tmp
 *.swp
 
-# Sauvegardes
+# Ignorer les sauvegardes
 *.bak
 *.old
 
-# Autres
+# Ignorer le fichier DS_Store (macOS uniquement)
 .DS_Store
