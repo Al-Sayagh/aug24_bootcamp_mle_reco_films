@@ -60,7 +60,7 @@ class SVDOptimizer:
             start_time = time.time()
             logger.info("Début du chargement des données...")
             
-            df = pd.read_csv('/data/raw/df_demonstration.csv', dtype={'id_utilisateur': str})
+            df = pd.read_csv('data/raw/df_demonstration.csv', dtype={'id_utilisateur': str})
             
             logger.info(f"Dimensions du DataFrame: {df.shape}")
             logger.info(f"Nombre d'utilisateurs uniques: {df['id_utilisateur'].nunique()}")
@@ -219,7 +219,7 @@ class SVDOptimizer:
                 }
             }
             
-            output_path = Path('/data/processed/svd_optimization.json')
+            output_path = Path('data/processed/svd_optimization.json')
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
             with open(output_path, 'w', encoding='utf-8') as f:
