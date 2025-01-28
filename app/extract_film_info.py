@@ -21,8 +21,8 @@ class FilmExtractor:
         Initialise l'extracteur d'informations sur les films.
         Utilise des chemins relatifs par rapport à la racine du projet.
         """
-        self.input_path = Path("/data/raw/df_demonstration.csv")
-        self.output_path = Path("/data/processed/films.json")
+        self.input_path = Path("data/raw/df_demonstration.csv")
+        self.output_path = Path("data/processed/films.json")
         logger.info(f"Initialisation de l'extracteur de films avec {self.input_path}")
 
     def read_data(self) -> pd.DataFrame:
