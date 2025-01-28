@@ -118,7 +118,7 @@ def generate_recommendations():
 # Définir les arguments par défaut pour le DAG
 default_args = {
     "owner": "airflow",
-    "start_date": datetime(2025, 1, 27),
+    "start_date": datetime(2025, 1, 28),
 }
 
 # Définir le DAG
