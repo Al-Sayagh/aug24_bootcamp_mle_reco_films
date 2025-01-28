@@ -52,8 +52,12 @@ async def lifespan(app: FastAPI):
         logger.info("Démarrage de l'application - Initialisation du système")
 
         logger.info("Phase 1: Chargement des données")
-        await recommender.load_data()
+        recommender.load_csv()
         logger.info("Données chargées avec succès")
+
+        logger.info("Phase 1.1: Préparation des données")
+        await recommender.prepare_data()
+        logger.info("Données préparées avec succès")
 
         logger.info("Phase 2: Initialisation du gestionnaire d'utilisateurs")
         await user_manager.refresh_users()
@@ -180,8 +184,8 @@ class UserManager:
         self._users: Dict[str, Dict[str, Any]] = {}
         self._last_update = None
         self.update_lock = Lock()
-        self.csv_path = "/data/raw/df_demonstration.csv"
-        self.json_path = "/data/processed/users.json"
+        self.csv_path = "data/raw/df_demonstration.csv"
+        self.json_path = "data/processed/users.json"
         self.recommender = recommender
 
         self.watcher = CSVWatcher(
@@ -195,7 +199,7 @@ class UserManager:
         logger.info("Changements détectés dans le CSV - Mise à jour des données")
         try:
             python_path = os.path.join(os.path.dirname(sys.executable), "python")
-            script_path = os.path.abspath("/app/extract_user_info.py")
+            script_path = os.path.abspath("app/extract_user_info.py")
 
             await asyncio.to_thread(lambda: subprocess.run([python_path, script_path], check=True))
             await self._load_from_json()
@@ -235,7 +239,7 @@ class UserManager:
         async with asyncio.Lock():
             try:
                 python_path = os.path.join(os.path.dirname(sys.executable), "python")
-                script_path = os.path.abspath("/app/extract_user_info.py")
+                script_path = os.path.abspath("app/extract_user_info.py")
 
                 await asyncio.to_thread(lambda: subprocess.run([python_path, script_path], check=True))
                 await self._load_from_json()
