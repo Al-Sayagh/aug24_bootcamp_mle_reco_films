@@ -21,6 +21,9 @@ LISTE DES LIVRABLES
 - Service de prédiction
 - Pipeline de déploiement continu (Bento ML)
 
+_____
+
+
 - Dashboard Grafana
 - Scripts de détection
 - Configuration des alertes
@@ -28,6 +31,10 @@ LISTE DES LIVRABLES
 - Système de réentraînement automatisé
 
 - Configuration Kubernetes complète
+
+
+_____
+
 
 - Documentation complète de votre Github projet
 - Support de présentation
