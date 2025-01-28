@@ -1,5 +1,6 @@
 # Ignorer les fichiers dans data/raw/
 data/raw/*.csv
+data/raw/modify_film_titles.py
 
 # Ignorer les données générées ou traitées
 data/processed/*
