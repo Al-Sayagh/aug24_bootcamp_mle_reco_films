@@ -18,7 +18,7 @@ Structure du Projet
     │   └── raw            <- Data dump originel et immutable (non modifiable).
     │
     ├── metrics            <- Sauvegarde des métriques du modèle 
-    │
+    │ 
     ├── models             <- Sauvegarde du modèle 
     │
     ├── references         <- Dictionnaires, manuels, liens, et autres documents explicatifs.
