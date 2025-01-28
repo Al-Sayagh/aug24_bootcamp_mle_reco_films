@@ -207,6 +207,11 @@ CONFIGURER LES ALERTES
 
 
 '''
+SYSTENE DE RE-ENTRAINEMENT AUTOMATISE
+'''
+
+
+'''
 KUBERNETES
 '''
 
@@ -269,15 +274,8 @@ CLEANING
 
 # Montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus
 
-# Utiliser df_demonstration_modifie.csv : il n'apparaît a priori nulle part dans le code. Pourtant les titres sont affichés au format correct... 
+# Utiliser df_demonstration_modified.csv : il n'apparaît a priori nulle part dans le code. Pourtant les titres sont affichés au format correct... ???
 
 # Ajouter une partie sécurisation à l'API (authentification, autorisation)
 
 # Intégrer Zen ML
-
-
-
-    '''
-    MONITORING DE DRIFT = EVIDENTLY
-
-   
