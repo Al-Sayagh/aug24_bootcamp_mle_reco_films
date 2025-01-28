@@ -71,7 +71,7 @@ class MovieRecommender:
     def _load_optimized_parameters(self) -> Dict:
         """Charge les paramètres optimisés depuis le fichier JSON."""
         try:
-            json_path = Path('/data/processed/svd_optimization.json')
+            json_path = Path('data/processed/svd_optimization.json')
             if json_path.exists():
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -154,7 +154,7 @@ class MovieRecommender:
                 self.trainset = self.data.build_full_trainset()
 
                 # Sauvegarder le trainset dans data/processed
-                out_path = Path("/data/processed/trainset_surprise.pkl")
+                out_path = Path("data/processed/trainset_surprise.pkl")
                 out_path.parent.mkdir(parents=True, exist_ok=True)
                 joblib.dump(self.trainset, out_path)
                 logger.info(f"Trainset sauvegardé dans {out_path}.")
