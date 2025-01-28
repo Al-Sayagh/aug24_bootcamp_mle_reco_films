@@ -12,7 +12,7 @@ LISTE DES LIVRABLES
 - Configuration MLflow et DVC documentée
 
 - Scripts d'entraînement
-- Pipeline automatisé (ML Flow)
+- Pipeline automatisé (ML Flow?)
 
 - Dockerfile et API fonctionnels
 
