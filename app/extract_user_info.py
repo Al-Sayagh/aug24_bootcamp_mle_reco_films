@@ -21,8 +21,8 @@ class UserExtractor:
         Initialise l'extracteur d'informations utilisateurs.
         Utilise des chemins relatifs par rapport à la racine du projet.
         """
-        self.input_path = Path("/data/raw/df_demonstration.csv")
-        self.output_path = Path("/data/processed/users.json")
+        self.input_path = Path("data/raw/df_demonstration.csv")
+        self.output_path = Path("data/processed/users.json")
         logger.info(f"Initialisation de l'extracteur avec {self.input_path}")
 
     def read_data(self) -> pd.DataFrame:
