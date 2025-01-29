@@ -12,7 +12,7 @@ LISTE DES LIVRABLES
 - Configuration MLflow et DVC documentée
 
 - Scripts d'entraînement
-- Pipeline automatisé (ML Flow?)
+- Pipeline automatisé
 
 - Dockerfile et API fonctionnels
 
@@ -20,6 +20,7 @@ LISTE DES LIVRABLES
 
 - Service de prédiction
 - Pipeline de déploiement continu (Bento ML)
+
 
 _____
 
@@ -36,6 +37,6 @@ _____
 _____
 
 
-- Documentation complète de votre Github projet
+- Documentation complète de votre projet Github 
 - Support de présentation
 - Démonstration fonctionnelle
