@@ -109,7 +109,6 @@ class SVDOptimizer:
         """Exécute la recherche sur grille avec logs détaillés."""
         try:
             start_time = datetime.now()
-            run_name = f"optimize-{start_time.strftime('%Y%m%d-%H%M%S')}"
             logger.info(f"Début de la recherche sur grille à {start_time.strftime('%H:%M:%S')}")
             
             # Récupérer l'URI de tracking MLflow depuis une variable d'environnement ou une connexion Airflow
@@ -133,35 +132,35 @@ class SVDOptimizer:
             else:
                 mlflow.set_experiment(experiment_name)
                 logger.info(f"Utilisation de l'expérience existante '{experiment_name}'.")
-    
-            with mlflow.start_run(run_name=run_name):
-                gs = GridSearchCV(
-                    SVD,
-                    self.param_grid,
-                    measures=['rmse', 'mae'],
-                    cv=5,
-                    n_jobs=-1,
-                    joblib_verbose=2  # Augmenté pour plus de détails
-                )
+
+            # Entraîner le modèle avec progression
+            logger.info("Démarrage de l'entraînement...")
+            gs = GridSearchCV(
+                SVD,
+                self.param_grid,
+                measures=['rmse', 'mae'],
+                cv=5,
+                n_jobs=-1,  
+                joblib_verbose=2  # Augmenté pour plus de détails
+            )
             
-                # Entraîner le modèle avec progression
-                logger.info("Démarrage de l'entraînement...")
-                gs.fit(self.data)
+            gs.fit(self.data)
 
-                # Enregistrer les meilleurs paramètres pour RMSE et MAE
-                best_params_rmse = gs.best_params['rmse']
-                best_score_rmse = gs.best_score['rmse']
-                best_params_mae = gs.best_params['mae']
-                best_score_mae = gs.best_score['mae']
-                
-                mlflow.log_params(best_params_rmse)
-                mlflow.log_metric("best_rmse", best_score_rmse)
-                mlflow.log_metric("best_mae", best_score_mae)
+            # Enregistrer les meilleurs paramètres pour RMSE et MAE
+            best_params_rmse = gs.best_params['rmse']
+            best_score_rmse = gs.best_score['rmse']
+            best_params_mae = gs.best_params['mae']
+            best_score_mae = gs.best_score['mae']
 
-                # Enregistrer le fichier log comme artifact
-                mlflow.log_artifact(str(file_path), artifact_path="log")
+            # Loguer les paramètres et métriques dans MLflow (associés au run actif)
+            mlflow.log_params(best_params_rmse)
+            mlflow.log_metric("best_rmse", best_score_rmse)
+            mlflow.log_metric("best_mae", best_score_mae)
 
-                logger.info("Optimisation terminée et enregistrée dans MLflow.")
+            # Enregistrer le fichier log comme artifact
+            mlflow.log_artifact(str(file_path), artifact_path="log")
+
+            logger.info("Optimisation terminée et enregistrée dans MLflow.")
             
             # Logger les résultats
             self.best_params_rmse = best_params_rmse
@@ -262,6 +261,9 @@ class SVDOptimizer:
             # Loguer les paramètres comme artifact dans MLflow
             mlflow.log_artifact(str(output_path), artifact_path="parameters")
 
+            # Loguer le fichier log comme artifact (déjà fait dans perform_gridsearch)
+            mlflow.log_artifact(str(file_path), artifact_path="log")
+
             logger.info(f"Résultats sauvegardés dans {output_path}")
             logger.info(f"Taille du fichier: {file_size:.2f} KB")
             logger.info(f"Sauvegarde effectuée en {elapsed_time:.2f} secondes")
@@ -272,6 +274,7 @@ class SVDOptimizer:
 
 def main():
     start_time = datetime.now()
+    run_name = f"optimize-{start_time.strftime('%Y%m%d-%H%M%S')}"
     logger.info("=== Début de l'optimisation des paramètres SVD ===")
     logger.info("Version optimisée avec espace de recherche réduit")
     
@@ -281,11 +284,15 @@ def main():
         logger.info("\n1. Chargement des données...")
         optimizer.load_data()
         
-        logger.info("\n2. Exécution de la recherche sur grille...")
-        optimizer.perform_gridsearch()
+        logger.info("\n2. Configuration de MLflow...")
+        # Configuration MLflow
+        mlflow.set_tracking_uri(settings.MLFLOW_TRACKING_URI)
+        mlflow.set_experiment("optimize_svd_surprise")
         
-        logger.info("\n3. Sauvegarde des résultats...")
-        optimizer.save_results()
+        logger.info("\n3. Exécution de la recherche sur grille et sauvegarde des résultats...")
+        with mlflow.start_run(run_name=run_name):
+            optimizer.perform_gridsearch()
+            optimizer.save_results()
         
         total_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"\n=== Optimisation terminée avec succès en {total_time:.2f} secondes ===")
