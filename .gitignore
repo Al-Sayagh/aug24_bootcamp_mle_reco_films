@@ -1,6 +1,5 @@
 # Ignorer les fichiers dans data/raw/
 data/raw/*.csv
-data/raw/modify_film_titles.py
 
 # Ignorer les données générées ou traitées
 data/processed/*
@@ -17,7 +16,7 @@ __pycache__/
 # Ignorer le fichier de configuration
 .env
 
-# Ignorer Visual Studio Code
+# Ignorer les fichiers Visual Studio Code
 .vscode/
 
 # Ignorer les fichiers temporaires
@@ -34,9 +33,13 @@ __pycache__/
 # Ignorer les caches et métadonnées DVC
 #.dvc/
 
-# Ignorer les fichiers ML Flow
+# Ignorer les dossiers crées par MLflow
 mlruns/
+mlartifacts/
 
-# Ignorer les dossiers Airflow
+# Ignorer les dossiers crées par Airflow
 logs/
 plugins/
+
+# Ignorer les fichiers que l'on ne présentera pas pour la démo
+modify_film_titles.py
