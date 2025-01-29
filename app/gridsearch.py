@@ -1,19 +1,22 @@
-import json
 import logging
-from pathlib import Path
-from surprise import SVD, Dataset, Reader
-from surprise.model_selection import GridSearchCV
-import pandas as pd
 import numpy as np
 from datetime import datetime
-import time
+import pandas as pd
+from surprise import SVD, Dataset, Reader
+from mlflow.tracking import MlflowClient
 import mlflow
+from surprise.model_selection import GridSearchCV
+import json
+from pathlib import Path
+
+# Import local
+from app.config import settings
 
 # Configurer le logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-file_path = "gridsearch.log"
+file_path = settings.GRIDSEARCH_LOG_PATH
 file_handler = logging.FileHandler(file_path)
 file_handler.setLevel(logging.INFO)
 file_handler.setFormatter(logging.Formatter(
@@ -27,8 +30,6 @@ console_handler.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
-
-logger.info("Cette information doit aller à la fois sur le terminal et dans gridsearch.log")
 
 class SVDOptimizer:
     def __init__(self):
@@ -56,12 +57,11 @@ class SVDOptimizer:
 
     def load_data(self) -> None:
         """Charge les données depuis le CSV."""
+        start_time = datetime.now()
+
         try:
-            start_time = time.time()
             logger.info("Début du chargement des données...")
-            
-            df = pd.read_csv('data/raw/df_demonstration.csv', dtype={'id_utilisateur': str})
-            
+            df = pd.read_csv(settings.RAW_DATA_PATH, dtype={'id_utilisateur': str})
             logger.info(f"Dimensions du DataFrame: {df.shape}")
             logger.info(f"Nombre d'utilisateurs uniques: {df['id_utilisateur'].nunique()}")
             logger.info(f"Nombre de films uniques: {df['titre_film'].nunique()}")
@@ -81,17 +81,16 @@ class SVDOptimizer:
                 df[['id_utilisateur', 'titre_film', 'score_pertinence']], 
                 reader
             )
-            
-            elapsed_time = time.time() - start_time
-            logger.info(f"Données chargées avec succès en {elapsed_time:.2f} secondes")
-            
         except Exception as e:
             logger.error(f"Erreur lors du chargement des données: {e}", exc_info=True)
-            raise
-
-    def _log_progress(self, iteration: int, start_time: float) -> None:
+            raise    
+        finally:
+            elapsed_time = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Données chargées avec succès en {elapsed_time:.2f} secondes")
+            
+    def _log_progress(self, iteration: int, start_time: datetime) -> None:
         """Log la progression de la recherche sur grille."""
-        elapsed_time = time.time() - start_time
+        elapsed_time = (datetime.now() - start_time).total_seconds()
         progress = (iteration + 1) / self.total_combinations
         estimated_total = elapsed_time / progress if progress > 0 else 0
         remaining_time = estimated_total - elapsed_time
@@ -103,13 +102,33 @@ class SVDOptimizer:
     def perform_gridsearch(self) -> None:
         """Exécute la recherche sur grille avec logs détaillés."""
         try:
-            start_time = time.time()
-            logger.info(f"Début de la recherche sur grille à {datetime.now().strftime('%H:%M:%S')}")
+            start_time = datetime.now()
+            run_name = f"optimize-{start_time.strftime('%Y%m%d-%H%M%S')}"
+            logger.info(f"Début de la recherche sur grille à {start_time.strftime('%H:%M:%S')}")
             
-            # Créer le GridSearchCV avec un callback pour le logging
-            mlflow.set_experiment("SVD Hyperparameters Optimization")
-            
-            with mlflow.start_run(run_name="GridSearch-SVD"):
+            # Récupérer l'URI de tracking MLflow depuis une variable d'environnement ou une connexion Airflow
+            mlflow_tracking_uri = settings.MLFLOW_TRACKING_URI
+            mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+            # Initialiser le client MLflow
+            client = MlflowClient()
+
+            experiment_name = "optimize_svd_surprise"
+
+            # Vérifier si l'expérience existe et est active
+            experiment = client.get_experiment_by_name(experiment_name)
+            if experiment and experiment.lifecycle_stage == "deleted":
+                client.restore_experiment(experiment.experiment_id)
+                logger.info(f"L'expérience '{experiment_name}' a été restaurée.")
+            elif not experiment:
+                # Créer une nouvelle expérience si elle n'existe pas
+                mlflow.set_experiment(experiment_name)
+                logger.info(f"Nouvelle expérience '{experiment_name}' créée.")
+            else:
+                mlflow.set_experiment(experiment_name)
+                logger.info(f"Utilisation de l'expérience existante '{experiment_name}'.")
+    
+            with mlflow.start_run(run_name=run_name):
                 gs = GridSearchCV(
                     SVD,
                     self.param_grid,
@@ -123,21 +142,26 @@ class SVDOptimizer:
                 logger.info("Démarrage de l'entraînement...")
                 gs.fit(self.data)
 
-                # Enregistrer les meilleurs paramètres
-                mlflow.log_params(gs.best_params['rmse'])
-                mlflow.log_metric("best_rmse", gs.best_score['rmse'])
-                mlflow.log_metric("best_mae", gs.best_score['mae'])
+                # Enregistrer les meilleurs paramètres pour RMSE et MAE
+                best_params_rmse = gs.best_params['rmse']
+                best_score_rmse = gs.best_score['rmse']
+                best_params_mae = gs.best_params['mae']
+                best_score_mae = gs.best_score['mae']
+                
+                mlflow.log_params(best_params_rmse)
+                mlflow.log_metric("best_rmse", best_score_rmse)
+                mlflow.log_metric("best_mae", best_score_mae)
 
-                # Enregistrer les artifacts
-                mlflow.log_artifact(file_path)
+                # Enregistrer le fichier log comme artifact
+                mlflow.log_artifact(str(file_path), artifact_path="log")
 
                 logger.info("Optimisation terminée et enregistrée dans MLflow.")
             
             # Logger les résultats
-            self.best_params_rmse = gs.best_params['rmse']
-            self.best_params_mae = gs.best_params['mae']
-            self.best_score_rmse = gs.best_score['rmse']
-            self.best_score_mae = gs.best_score['mae']
+            self.best_params_rmse = best_params_rmse
+            self.best_params_mae = best_params_mae
+            self.best_score_rmse = best_score_rmse
+            self.best_score_mae = best_score_mae
             self.cv_results = gs.cv_results
             
             logger.info("\nRésultats de la recherche sur grille:")
@@ -163,7 +187,8 @@ class SVDOptimizer:
             for params, score in sorted_results_mae[:5]:
                 logger.info(f"MAE: {score:.4f} avec {params}")
             
-            elapsed_time = time.time() - start_time
+            end_time = datetime.now()
+            elapsed_time = (end_time - start_time).total_seconds()
             logger.info(f"\nRecherche sur grille terminée en {elapsed_time:.2f} secondes")
             
         except Exception as e:
@@ -171,9 +196,9 @@ class SVDOptimizer:
             raise
 
     def save_results(self) -> None:
-        """Sauvegarde les résultats au format JSON avec logs détaillés."""
+        """Sauvegarde les résultats au format JSON avec logs détaillés et les logs dans MLflow."""
         try:
-            start_time = time.time()
+            start_time = datetime.now()
             logger.info("Préparation des résultats pour la sauvegarde...")
             
             # Convertir les paramètres numpy en types Python natifs
@@ -219,25 +244,28 @@ class SVDOptimizer:
                 }
             }
             
-            output_path = Path('data/processed/svd_optimization.json')
+            output_path = settings.OPTIMIZED_PARAMETERS_PATH
             output_path.parent.mkdir(parents=True, exist_ok=True)
             
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(results, f, indent=4, ensure_ascii=False)
             
-            elapsed_time = time.time() - start_time
+            elapsed_time = (datetime.now() - start_time).total_seconds()
             file_size = output_path.stat().st_size / 1024  # Taille en KB
             
+            # Loguer les paramètres comme artifact dans MLflow
+            mlflow.log_artifact(str(output_path), artifact_path="parameters")
+
             logger.info(f"Résultats sauvegardés dans {output_path}")
             logger.info(f"Taille du fichier: {file_size:.2f} KB")
             logger.info(f"Sauvegarde effectuée en {elapsed_time:.2f} secondes")
-            
+ 
         except Exception as e:
             logger.error(f"Erreur lors de la sauvegarde des résultats: {e}", exc_info=True)
             raise
 
 def main():
-    start_time = time.time()
+    start_time = datetime.now()
     logger.info("=== Début de l'optimisation des paramètres SVD ===")
     logger.info("Version optimisée avec espace de recherche réduit")
     
@@ -253,7 +281,7 @@ def main():
         logger.info("\n3. Sauvegarde des résultats...")
         optimizer.save_results()
         
-        total_time = time.time() - start_time
+        total_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"\n=== Optimisation terminée avec succès en {total_time:.2f} secondes ===")
         
     except Exception as e:
