@@ -1,3 +1,5 @@
+from pathlib import Path
+import sys
 import logging
 from surprise import SVD, Dataset, Reader
 from threading import Lock
@@ -10,6 +12,11 @@ from mlflow.tracking import MlflowClient
 import mlflow
 from surprise.model_selection import cross_validate
 import numpy as np
+
+# Ajouter le répertoire racine au sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
 # Import local
 from app.config import settings
