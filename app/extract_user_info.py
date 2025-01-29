@@ -1,19 +1,31 @@
-import pandas as pd
-import json
-from datetime import datetime
 import logging
-from pathlib import Path
-import sys
+import pandas as pd
 from typing import Dict, Any
+from datetime import datetime
+import json
+import sys
+
+# Import local
+from app.config import settings
 
 # Configurer le logging
-logging.basicConfig(
-    filename='user_extractor.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+file_path = settings.USER_EXTRACTOR_LOG_PATH
+file_handler = logging.FileHandler(file_path)
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+))
+logger.addHandler(file_handler)
+
+# Ajouter un handler pour la console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 class UserExtractor:
     def __init__(self):
@@ -21,8 +33,8 @@ class UserExtractor:
         Initialise l'extracteur d'informations utilisateurs.
         Utilise des chemins relatifs par rapport à la racine du projet.
         """
-        self.input_path = Path("data/raw/df_demonstration.csv")
-        self.output_path = Path("data/processed/users.json")
+        self.input_path = settings.RAW_DATA_PATH
+        self.output_path = settings.USERS_INFO_PATH
         logger.info(f"Initialisation de l'extracteur avec {self.input_path}")
 
     def read_data(self) -> pd.DataFrame:
