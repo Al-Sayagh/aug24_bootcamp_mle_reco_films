@@ -27,7 +27,6 @@ from app.models import ModelMetrics
 from app.recommender import MovieRecommender
 from app.gridsearch import main as gridsearch_main
 
-
 # Configurer le logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
