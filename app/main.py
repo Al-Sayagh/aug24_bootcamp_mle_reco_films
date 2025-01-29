@@ -1,48 +1,44 @@
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Dict, List, Optional, Any
 from pydantic import BaseModel, Field
-from datetime import datetime
-import logging
-from cachetools import TTLCache, cached
-import asyncio
-import os
-import sys
-import threading
+from typing import Dict, List, Optional, Any
 from threading import Lock
-import subprocess
+import os
+import asyncio
 import time
+import threading
+from cachetools import TTLCache, cached
+import sys
+import subprocess
 import json
-from contextlib import asynccontextmanager
-import mlflow
+from datetime import datetime
 
 # Import local
-from app.recommender import MovieRecommender
 from app.config import settings
 from app.models import ModelMetrics
+from app.recommender import MovieRecommender
+from app.gridsearch import main as gridsearch_main
+
 
 # Configurer le logging
-import builtins
-if not hasattr(builtins, 'open'):
-    builtins.open = open
-
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
-# Configurer un handler pour le fichier de log
-file_handler = logging.FileHandler('api.log', mode='a', encoding='utf-8')
+file_path = settings.API_LOG_PATH
+file_handler = logging.FileHandler(file_path)
 file_handler.setLevel(logging.DEBUG)
-file_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
-)
-file_handler.setFormatter(file_formatter)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+))
 logger.addHandler(file_handler)
 
-# Configurer un handler pour la console
+# Ajouter un handler pour la console
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-console_handler.setFormatter(console_formatter)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 @asynccontextmanager
@@ -82,7 +78,7 @@ async def lifespan(app: FastAPI):
 # Créer l'application FastAPI avec gestionnaire lifespan
 app = FastAPI(
     title="Système de Recommandation de Films",
-    description="API de recommandation de films basée sur l'algorithme SVD.",
+    description="API de recommandation de films basée sur l'algorithme Surprise SVD.",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
@@ -184,8 +180,8 @@ class UserManager:
         self._users: Dict[str, Dict[str, Any]] = {}
         self._last_update = None
         self.update_lock = Lock()
-        self.csv_path = "data/raw/df_demonstration.csv"
-        self.json_path = "data/processed/users.json"
+        self.csv_path = settings.RAW_DATA_PATH
+        self.json_path = settings.USERS_INFO_PATH
         self.recommender = recommender
 
         self.watcher = CSVWatcher(
@@ -357,26 +353,47 @@ async def get_model_metrics():
     """Récupère les métriques de performance du modèle."""
     try:
         metrics = await recommender.evaluate()
-        mlflow.set_experiment("Movie Recommandation System")
-        with mlflow.start_run(run_name="Evaluate-SVD-{0}".format(datetime.now().strftime('%Y%m%d-%H%M%S'))):
-            mlflow.log_metric("rmse", metrics.rmse)
-            mlflow.log_metric("mae", metrics.mae)
-            mlflow.log_metric("training_time", metrics.training_time)
-            mlflow.log_param("n_users", metrics.nombre_utilisateurs)
-            mlflow.log_param("n_items", metrics.nombre_films)
         return metrics
     except Exception as e:
         logger.error(f"Erreur lors du calcul des métriques: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/gridsearch", tags=["Optimisation"])
+def get_optimized_parameters():
+    """Obtenir les hyperparamètres optimisés par une GridSearch."""
+    try:
+        optimized_parameters = gridsearch_main()
+        return optimized_parameters
+    except Exception as e:
+        logger.error(f"Erreur lors de l'optimisation des hyperparamètres: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/refresh", tags=["Système"])
 async def refresh_system():
     """Force le rafraîchissement des données et du modèle."""
     try:
-        await recommender.load_data()
+        logger.info("Début du rafraîchissement du système.")
+        
+        # Charger les données CSV
+        logger.info("Chargement des données CSV...")
+        await recommender.load_csv()
+        logger.info("Données CSV chargées avec succès.")
+        
+        # Préparer les données pour l'entraînement
+        logger.info("Préparation des données...")
+        await recommender.prepare_data()
+        logger.info("Données préparées avec succès.")
+        
+        # Rafraîchir les utilisateurs
+        logger.info("Rafraîchissement des utilisateurs...")
         await user_manager.refresh_users()
+        logger.info("Utilisateurs rafraîchis avec succès.")
+        
+        # Entraîner le modèle
+        logger.info("Entraînement du modèle...")
         await recommender.train(force=True)
-
+        logger.info("Modèle entraîné avec succès.")
+        
         return {
             "status": "success",
             "message": "Système rafraîchi avec succès",
