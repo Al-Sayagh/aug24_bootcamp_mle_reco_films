@@ -1,0 +1,8 @@
+{
+    "rmse": 12.918219877215611,
+    "mae": 10.769754222422897,
+    "training_time": 7.627767,
+    "nombre_utilisateurs": 13373,
+    "nombre_films": 385,
+    "score_pertinence_moyen": 48.49601336327678
+}
