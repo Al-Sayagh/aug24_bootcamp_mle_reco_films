@@ -382,7 +382,7 @@ async def refresh_system():
         
         # Charger les données CSV
         logger.info("Chargement des données CSV...")
-        await recommender.load_csv()
+        recommender.load_csv()
         logger.info("Données CSV chargées avec succès.")
         
         # Préparer les données pour l'entraînement
