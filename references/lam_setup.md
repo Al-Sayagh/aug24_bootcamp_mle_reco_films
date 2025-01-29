@@ -8,6 +8,9 @@ https://github.com/Al-Sayagh/aug24_bootcamp_mle_reco_films.git
 # Chemin vers le dossier du projet
 /Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films/
 
+# Chemin vers la base de données brutes
+https://drive.google.com/file/d/1G6h50Pj-OsYL_S6GxCTy9PHThupnAyD2/view?usp=sharing
+
 # Créer un nouvel environnement virtuel 
 mamba create -n mlopsproject python=3.9 -y
 
@@ -27,24 +30,31 @@ CONFIGURER LE DVC
 
 # Installer les librairies
 pip install dvc
-pip install "dvc[s3]"
+#pip install "dvc[s3]"
 
 # Initialiser le dvc
 dvc init -f
 
 # Configurer le DagsHub DVC remote
-dvc remote add origin s3://dvc
-dvc remote modify origin endpointurl https://dagshub.com/LamPaturle-AI/examen-dvc.s3
+#dvc remote add origin s3://dvc
+#dvc remote modify origin endpointurl https://dagshub.com/LamPaturle-AI/examen-dvc.s3
 
-dvc remote modify origin --local access_key_id 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
-dvc remote modify origin --local secret_access_key 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
+#dvc remote modify origin --local access_key_id 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
+#dvc remote modify origin --local secret_access_key 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
 
-dvc remote default origin
+#dvc remote default origin
 
 # Créer le fichier paramètres
-touch params.yaml
+#touch params.yaml
 
-# Push vers le DVC
+# Ajouter le dataset sous versioning DVC
+dvc add data/raw/df_demonstration.csv
+
+# Commit du suivi du dataset dans Git
+git add data/raw/dataset.csv.dvc .gitignore
+git commit -m "Ajout du dataset sous DVC"
+
+# Pousser les données vers un stockage distant (S3, Google Drive...)
 dvc push
 
 
@@ -93,7 +103,17 @@ DEFINIR LA SUITE DE TESTS
 # Installer les librairies
 pip install pytest 
 
-# Créer les fichiers _test.py
+# Créer les fichiers test de sécurité
+- conftest.py
+- test_authentication.py
+- test_authorization.py
+
+# Créer les fichiers test de fonctionnalité
+- test_get_recommendations.py
+- test_get_metrics.py
+- test_get_users.py
+- test_gridsearch.py
+- test_refresh_system.py
 
 # Lancer les tests
 pytest
@@ -191,29 +211,13 @@ pip install pipreqs
 pipreqs ./ --force
 
 
-
 '''
-METTRE EN PLACE UN DASHBOARD GRAFANA
-'''
-
-
-'''
-CONFIGURER LES ALERTES
+CONTENAIRISER AVEC DOCKER
 '''
 
 
 '''
-SYSTEME DE RE-ENTRAINEMENT AUTOMATISE
-'''
-
-
-'''
-KUBERNETES
-'''
-
-
-'''
-BENTOML
+DEPLOYER AVEC BENTOML
 '''
 
 # Installer les librairies
@@ -261,10 +265,35 @@ docker save -o ./bento_image.tar surpriseSVD_service:latest
 bentoml serve service.py:surpriseSVD_service --reload
 
 
+'''
+METTRE EN PLACE UN DASHBOARD GRAFANA
+'''
+
+
+'''
+CONFIGURER LES ALERTES
+'''
+
+
+'''
+SYSTEME DE RE-ENTRAINEMENT AUTOMATISE
+'''
+
+
+'''
+KUBERNETES
+'''
+
+
+
+
+
 
 '''
 CLEANING
 '''
+
+# Ajouter l'expérience predict à MLflow == get recommendations (artefacts: log et JSON de recommandations)
 
 # Ajouter une partie sécurisation à l'API (authentification, autorisation)
 
