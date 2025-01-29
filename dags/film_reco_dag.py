@@ -1,14 +1,14 @@
-from airflow import DAG
-from airflow.operators.python_operator import PythonOperator
-from airflow.utils.task_group import TaskGroup
-from datetime import datetime
-import asyncio
-import pandas as pd
-import joblib
-from pathlib import Path
 import sys
 import os
+import pandas as pd
+import asyncio
+import joblib
 from surprise import Dataset, Reader
+import logging
+from datetime import datetime
+from airflow import DAG
+from airflow.utils.task_group import TaskGroup
+from airflow.operators.python_operator import PythonOperator
 
 # Import local
 from app.config import settings
@@ -16,14 +16,8 @@ from app.recommender import MovieRecommender
 from app.extract_user_info import main as main_extract_user_info
 from app.gridsearch import main as main_gridsearch
 
-
 # Ajouter le PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Définir le chemin vers le CSV final nettoyé
-DF_CLEAN_PATH = "/data/processed/df_clean.csv"
-# Définir le chemin vers le trainset sauvegardé
-TRAINSET_PATH = "/data/processed/trainset_surprise.pkl"
 
 # Définir les fonctions utiles
 
@@ -36,7 +30,7 @@ def load_raw_data():
     recommender.load_csv()  
     df = recommender.df
 
-    out_path = Path(DF_CLEAN_PATH)
+    out_path = settings.RAW_DATA_PATH
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
     print(f"Fichier brut sauvegardé : {out_path}")
@@ -48,7 +42,7 @@ def prepare_data_for_surprise():
     pour générer le trainset, et sauvegarde le trainset dans trainset_surprise.pkl.
     """
     recommender = MovieRecommender()
-    df_clean = pd.read_csv(DF_CLEAN_PATH)
+    df_clean = pd.read_csv(settings.RAW_DATA_PATH)
     recommender.df = df_clean
     asyncio.run(recommender.prepare_data())
     print("Préparation Surprise terminée et trainset sauvegardé.")
@@ -61,7 +55,7 @@ def train_model():
     """
     recommender = MovieRecommender()
     # Charger le trainset pkl depuis la tâche précédente
-    recommender.trainset = joblib.load(TRAINSET_PATH)
+    recommender.trainset = joblib.load(settings.TRAINSET_PATH)
 
     # Entraîner le modèle (force=True pour forcer la ré-entrainement si besoin)
     asyncio.run(recommender.train(force=True))
@@ -74,9 +68,9 @@ def evaluate_model():
     puis enregistre les métriques sous forme de JSON (metrics/model_metrics.json).
     """
     recommender = MovieRecommender()
-    recommender.trainset = joblib.load(TRAINSET_PATH)
+    recommender.trainset = joblib.load(settings.TRAINSET_PATH)
     # Recréer un dataset Surprise
-    df_clean = pd.read_csv(DF_CLEAN_PATH)
+    df_clean = pd.read_csv(settings.RAW_DATA_PATH)
     recommender.df = df_clean
 
     score_min = df_clean['score_pertinence'].min()
@@ -93,27 +87,77 @@ def evaluate_model():
     metrics = asyncio.run(recommender.evaluate())
     print("Métriques d'évaluation calculés et sauvegardés :", metrics)
 
-    # Optimiser les hyperparamètres
-
     # Obtenir des recommandations
 def generate_recommendations():
     """
     Charge le modèle et les données, puis génère des recommandations pour un utilisateur donné.
     """
-    recommender = MovieRecommender()
-    recommender.trainset = joblib.load("/data/processed/trainset_surprise.pkl")
-    recommender.model = joblib.load(settings.MODEL_PATH)  
-    recommender.df = pd.read_csv("/data/processed/df_clean.csv")
-    
-    # Par exemple pour l'utilisateur 10005, on demande 5 recommandations
-    recommendations = asyncio.run(recommender.recommend(id_utilisateur=10005, n=5))
-    
-    if recommendations:
-        print("Recommandations pour l'utilisateur 10005 :")
-        for r in recommendations:
-            print(r)
-    else:
-        print("Aucune recommandation trouvée ou utilisateur inconnu.")
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    async def async_generate():
+        try:
+            recommender = MovieRecommender()
+
+            # Charger le trainset
+            trainset_path = settings.TRAINSET_PATH
+            recommender.trainset = joblib.load(trainset_path)
+            logger.info(f"Trainset chargé depuis {trainset_path}")
+
+            # Charger le modèle
+            model_path = settings.MODEL_PATH
+            recommender.model = joblib.load(model_path)
+            logger.info(f"Modèle chargé depuis {model_path}")
+
+            # Charger le DataFrame
+            df_path = settings.CLEAN_DATA_PATH
+            recommender.df = pd.read_csv(df_path)
+            logger.info(f"DataFrame chargé depuis {df_path} avec {len(recommender.df)} lignes.")
+
+            # Initialiser 'reader' et 'data'
+            recommender.reader = Reader(rating_scale=(recommender.df['score_pertinence'].min(), recommender.df['score_pertinence'].max()))
+            recommender.data = Dataset.load_from_df(
+                recommender.df[['id_utilisateur', 'titre_film', 'score_pertinence']],
+                recommender.reader
+            )
+            logger.info("Reader et Dataset initialisés.")
+
+            # Créer le mapping des utilisateurs
+            recommender.user_mapping = {str(uid): True for uid in recommender.df['id_utilisateur'].unique()}
+            logger.info(f"Mapping créé pour {len(recommender.user_mapping)} utilisateurs uniques.")
+
+            # Vérifier si une mise à jour est nécessaire
+            if recommender.needs_update():
+                logger.info("Mise à jour nécessaire, appel de load_csv() et train()")
+                recommender.load_csv()
+                await recommender.train(force=True)
+            else:
+                logger.info("Mise à jour non nécessaire, pas de réentraînement.")
+
+            # Générer les recommandations
+            recommendations = await recommender.recommend(id_utilisateur='10005', n=5)
+            logger.info(f"Recommandations générées pour l'utilisateur 10005 : {recommendations}")
+
+            # Afficher les recommandations
+            if recommendations:
+                print("Recommandations pour l'utilisateur 10005 :")
+                for r in recommendations:
+                    print(r)
+            else:
+                print("Aucune recommandation trouvée ou utilisateur inconnu.")
+
+            # Optionnel : Retourner une valeur sérialisable
+            return "Recommandations générées avec succès"
+
+        except Exception as e:
+            logger.error(f"Erreur lors de la génération des recommandations: {e}", exc_info=True)
+            raise
+
+    # Exécuter la coroutine et capturer le résultat
+    result = asyncio.run(async_generate())
+
+    # Optionnellement, retourner une valeur sérialisable
+    return result
 
 # Définir les arguments par défaut pour le DAG
 default_args = {
