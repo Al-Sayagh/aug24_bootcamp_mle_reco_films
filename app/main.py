@@ -1,3 +1,5 @@
+from pathlib import Path
+import sys
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Depends
@@ -10,10 +12,14 @@ import asyncio
 import time
 import threading
 from cachetools import TTLCache, cached
-import sys
 import subprocess
 import json
 from datetime import datetime
+
+# Ajouter le répertoire racine au sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.append(str(PROJECT_ROOT))
 
 # Import local
 from app.config import settings
