@@ -258,7 +258,6 @@ class MovieRecommender:
                     # Loguer le fichier log comme artifact
                     mlflow.log_artifact(str(file_path), artifact_path="log")
 
-                    
                 self.last_training_time = training_duration
                 logger.info(f"Modèle entraîné et sauvegardé en {self.last_training_time:.2f} secondes")
 
