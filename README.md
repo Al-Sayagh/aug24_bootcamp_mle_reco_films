@@ -11,22 +11,23 @@ Structure du Projet
     │
     ├── app                <- Code source à utiliser pour ce projet.
     │
-    ├── dags               <- Fichier DAG pour Airflow 
+    ├── dags               <- Fichier DAG pour Airflow. 
     │
     ├── data               <- Doit être sur votre ordinateur mais pas sur Github (seulement dans .gitignore).
     │   ├── processed      <- Data sets finaux et canoniques à utiliser pour la modélisation.
     │   └── raw            <- Data dump originel et immutable (non modifiable).
-    │
-    ├── metrics            <- Sauvegarde des métriques du modèle 
+    │                         
+    ├── metrics            <- Sauvegarde des métriques du modèle. 
     │ 
-    ├── models             <- Sauvegarde du modèle 
+    ├── models             <- Sauvegarde du modèle. 
+    │
+    ├── notebooks          <- Notebooks Jupyter, scripts, rapport d'analyse exploratoire des données.
     │
     ├── references         <- Dictionnaires, manuels, liens, et autres documents explicatifs.
     │
-    ├── tests              <- Fichiers test pour Pytest 
+    ├── tests              <- Fichiers test pour Pytest. 
     │
-    ├── requirements.txt   <- Fichier requirements pour reproduire l'environnement d'analyse, e.g.
-    │                         généré avec `pip freeze > requirements.txt`.
+    ├── requirements.txt   <- Fichier requirements pour reproduire l'environnement d'analyse.
     │   
 
 --------
