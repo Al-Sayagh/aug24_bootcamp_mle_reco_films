@@ -1,15 +1,15 @@
 import logging
-import json
-import joblib 
-import mlflow
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from datetime import datetime
-from typing import List, Dict
-from threading import Lock
 from surprise import SVD, Dataset, Reader
+from threading import Lock
+from typing import List, Dict
+import json
+import pandas as pd
+from datetime import datetime
+import joblib 
+from mlflow.tracking import MlflowClient
+import mlflow
 from surprise.model_selection import cross_validate
+import numpy as np
 
 # Import local
 from app.config import settings
@@ -17,18 +17,21 @@ from app.models import MovieRecommendation, ModelMetrics
 
 # Configurer le logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
-file_handler = logging.FileHandler('recommender.log', mode='a', encoding='utf-8')
+file_path = settings.RECOMMENDER_LOG_PATH
+file_handler = logging.FileHandler(file_path)
 file_handler.setLevel(logging.DEBUG)
-file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s")
-file_handler.setFormatter(file_formatter)
+file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+))
 logger.addHandler(file_handler)
 
+# Ajouter un handler pour la console
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-console_handler.setFormatter(console_formatter)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 class MovieRecommender:
@@ -71,7 +74,7 @@ class MovieRecommender:
     def _load_optimized_parameters(self) -> Dict:
         """Charge les paramètres optimisés depuis le fichier JSON."""
         try:
-            json_path = Path('data/processed/svd_optimization.json')
+            json_path = settings.OPTIMIZED_PARAMETERS_PATH
             if json_path.exists():
                 with open(json_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
@@ -91,7 +94,7 @@ class MovieRecommender:
         if not self._last_update:
             return True
         try:
-            csv_mtime = Path(settings.DATA_PATH).stat().st_mtime
+            csv_mtime = settings.RAW_DATA_PATH.stat().st_mtime
             return csv_mtime > self._last_update.timestamp()
         except Exception as e:
             logger.error(f"Erreur lors de la vérification de mise à jour: {e}")
@@ -104,8 +107,8 @@ class MovieRecommender:
         """
         with self.state_lock:
             try:
-                logger.info(f"Début du chargement des données depuis {settings.DATA_PATH}...")
-                self.df = pd.read_csv(settings.DATA_PATH, dtype={'id_utilisateur': str})
+                logger.info(f"Début du chargement des données depuis {settings.RAW_DATA_PATH}...")
+                self.df = pd.read_csv(settings.RAW_DATA_PATH, dtype={'id_utilisateur': str})
                 self._last_update = datetime.now()
                 logger.info(f"CSV chargé: {len(self.df)} lignes.")
             except Exception as e:
@@ -119,7 +122,8 @@ class MovieRecommender:
             try:
                 if self.df is None:
                     raise ValueError("Le DataFrame est vide (self.df est None). Appelez d'abord load_csv().")
-
+                logger.info("Début de la préparation des données.")
+                            
                 # Vérifier la présence des colonnes requises
                 required_columns = [
                     'id_utilisateur', 'titre_film', 'score_pertinence',
@@ -152,9 +156,10 @@ class MovieRecommender:
                     self.reader
                 )
                 self.trainset = self.data.build_full_trainset()
+                logger.info("Trainset créé.")
 
                 # Sauvegarder le trainset dans data/processed
-                out_path = Path("data/processed/trainset_surprise.pkl")
+                out_path = settings.TRAINSET_PATH
                 out_path.parent.mkdir(parents=True, exist_ok=True)
                 joblib.dump(self.trainset, out_path)
                 logger.info(f"Trainset sauvegardé dans {out_path}.")
@@ -184,28 +189,70 @@ class MovieRecommender:
                 self._is_training = True
                 if self.trainset is None:
                     raise ValueError("Les données doivent être préparées avant l'entraînement (self.trainset est None).")
-
-                start_time = datetime.now()
                 logger.info("Début de l'entraînement du modèle SVD...")
-
+                
+                start_time = datetime.now()
+                run_name = f"train-{start_time.strftime('%Y%m%d-%H%M%S')}"
                 self.model.fit(self.trainset)
+                end_time = datetime.now()
+                logger.info("Entraînement du modèle SVD terminé.")
 
-                # Enregistrer dans Mlflow
-                mlflow.set_experiment("Movie Recommandation System")
-                with mlflow.start_run(run_name="Train-SVD-{0}".format(start_time.strftime('%Y%m%d-%H%M%S'))):
+                # Calculer la durée d'entraînement
+                training_duration = (end_time - start_time).total_seconds()
+
+                # Configuration de MLflow
+                mlflow_tracking_uri = settings.MLFLOW_TRACKING_URI
+                mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+                # Initialiser le client MLflow
+                client = MlflowClient()
+
+                experiment_name = "train_svd_surprise"
+                
+                # Vérifier si l'expérience existe et est active
+                try:
+                    experiment = client.get_experiment_by_name(experiment_name)
+                    if experiment and experiment.lifecycle_stage == "deleted":
+                        client.restore_experiment(experiment.experiment_id)
+                        logger.info(f"L'expérience '{experiment_name}' a été restaurée.")
+                    elif not experiment:
+                        # Créer une nouvelle expérience si elle n'existe pas
+                        mlflow.set_experiment(experiment_name)
+                        logger.info(f"Nouvelle expérience '{experiment_name}' créée.")
+                    else:
+                        mlflow.set_experiment(experiment_name)
+                        logger.info(f"Utilisation de l'expérience existante '{experiment_name}'.")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la gestion de l'expérience MLflow: {e}", exc_info=True)
+                    raise
+
+                with mlflow.start_run(run_name=run_name):
+                    # Créer un dictionnaire des paramètres manuellement
+                    model_params = {
+                        "n_factors": self.model.n_factors,
+                        "n_epochs": self.model.n_epochs,
+                        "random_state": self.model.random_state
+                    }
                     # Logger les paramètres du modèle
-                    mlflow.log_params(self.model.__dict__)
+                    mlflow.log_params(model_params)
+
                     # Logger la durée d'entraînement
-                    training_duration = (datetime.now() - start_time).total_seconds()
                     mlflow.log_metric("training_time", training_duration)
+                    
                     # Sauvegarder le modèle
-                    model_dir = Path(settings.MODEL_PATH).parent
+                    model_dir = settings.MODEL_PATH.parent
                     model_dir.mkdir(parents=True, exist_ok=True)
                     joblib.dump(self.model, settings.MODEL_PATH)
-                    # Logger le modèle dans MLflow
-                    mlflow.sklearn.log_model(self.model, artifact_path="SVD-model")
+                    logger.info(f"Modèle sauvegardé dans {settings.MODEL_PATH}.")
+
+                    # Loguer le modèle comme artifact
+                    mlflow.log_artifact(str(settings.MODEL_PATH), artifact_path="model")
+
+                    # Loguer le fichier log comme artifact
+                    mlflow.log_artifact(str(file_path), artifact_path="log")
+
                     
-                self.last_training_time = (datetime.now() - start_time).total_seconds()
+                self.last_training_time = training_duration
                 logger.info(f"Modèle entraîné et sauvegardé en {self.last_training_time:.2f} secondes")
 
             except Exception as e:
@@ -267,13 +314,16 @@ class MovieRecommender:
 
     async def evaluate(self) -> ModelMetrics:
         """Évalue les performances du modèle de manière thread-safe via cross-validation,
-        puis sauvegarde les metrics dans un fichier JSON sous /metrics/."""
+        puis sauvegarde les metrics dans un fichier JSON sous /metrics/ et les log dans MLflow."""
         with self.state_lock:
             try:
                 logger.info("Évaluation du modèle en cours...")
+                start_time = datetime.now()
+                run_name = f"evaluate-{start_time.strftime('%Y%m%d-%H%M%S')}"
                 if self.data is None or self.trainset is None:
                     raise ValueError("Les données doivent être préparées avant l'évaluation.")
                 
+                # Effectuer la cross-validation
                 results = cross_validate(
                     self.model,
                     self.data,
@@ -282,9 +332,11 @@ class MovieRecommender:
                     verbose=False
                 )
 
+                # Calculer les moyennes des métriques
                 rmse = float(np.mean(results["test_rmse"]))
                 mae = float(np.mean(results["test_mae"]))
 
+                # Créer l'objet ModelMetrics
                 metrics = ModelMetrics(
                     rmse=rmse,
                     mae=mae,
@@ -295,15 +347,62 @@ class MovieRecommender:
                 )
 
                 # Sauvegarde des métriques au format JSON
-                metrics_dir = Path("metrics")
+                metrics_dir = settings.MODEL_METRICS_PATH.parent
                 metrics_dir.mkdir(parents=True, exist_ok=True)
-                metrics_path = metrics_dir / "model_metrics.json"
+                metrics_path = settings.MODEL_METRICS_PATH
                 with open(metrics_path, "w", encoding="utf-8") as f:
                     json.dump(metrics.dict(), f, indent=4, ensure_ascii=False)
 
                 logger.info(f"Métriques sauvegardées dans {metrics_path}")   
                 logger.info(f"Évaluation terminée - RMSE: {rmse:.4f}, MAE: {mae:.4f}")
                 
+                # Récupérer l'URI de tracking MLflow depuis une variable d'environnement ou une connexion Airflow
+                mlflow_tracking_uri = settings.MLFLOW_TRACKING_URI
+                mlflow.set_tracking_uri(mlflow_tracking_uri)
+
+                # Initialiser le client MLflow
+                client = MlflowClient()
+
+                experiment_name = "evaluate_svd_surprise"
+
+                # Vérifier si l'expérience existe et est active
+                try:
+                    experiment = client.get_experiment_by_name(experiment_name)
+                    if experiment and experiment.lifecycle_stage == "deleted":
+                        client.restore_experiment(experiment.experiment_id)
+                        logger.info(f"L'expérience '{experiment_name}' a été restaurée.")
+                    elif not experiment:
+                        # Créer une nouvelle expérience si elle n'existe pas
+                        mlflow.set_experiment(experiment_name)
+                        logger.info(f"Nouvelle expérience '{experiment_name}' créée.")
+                    else:
+                        mlflow.set_experiment(experiment_name)
+                        logger.info(f"Utilisation de l'expérience existante '{experiment_name}'.")
+                except Exception as e:
+                    logger.error(f"Erreur lors de la gestion de l'expérience MLflow: {e}", exc_info=True)
+                    raise
+
+                with mlflow.start_run(run_name=run_name):
+                    # Loguer les métriques dans MLflow
+                    mlflow.log_metrics({
+                        "RMSE": rmse,
+                        "MAE": mae
+                    })
+                
+                    # Loguer les paramètres pertinents
+                    mlflow.log_params({
+                        "training_time": self.last_training_time or 0,
+                        "nombre_utilisateurs": self.trainset.n_users,
+                        "nombre_films": self.trainset.n_items,
+                        "score_pertinence_moyen": self.trainset.global_mean
+                    })
+                
+                    # Loguer le fichier JSON des métriques comme artifact
+                    mlflow.log_artifact(str(metrics_path), artifact_path="metrics")
+
+                    # Loguer le fichier log comme artifact
+                    mlflow.log_artifact(str(file_path), artifact_path="log")
+
                 return metrics
 
             except Exception as e:
