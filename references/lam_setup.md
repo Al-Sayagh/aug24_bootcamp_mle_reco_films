@@ -85,10 +85,6 @@ uvicorn app.main:app --reload
 # Accéder à l'interface web
 http://localhost:8000/docs
 
-# Ajouter les endpoints manquants (à discuter)
-- gridsearch
-- extract_film_info
-
 
 '''
 DEFINIR LA SUITE DE TESTS
@@ -270,8 +266,12 @@ bentoml serve service.py:surpriseSVD_service --reload
 CLEANING
 '''
 
-# Montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus
-
 # Ajouter une partie sécurisation à l'API (authentification, autorisation)
+
+# Ajouter extract_film_info
+- comme endpoint dans l'api
+- comme task dans Airflow 
+
+# Montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus
 
 # Intégrer Zen ML
