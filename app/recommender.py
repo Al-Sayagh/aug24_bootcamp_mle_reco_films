@@ -109,13 +109,13 @@ class MovieRecommender:
 
     def load_csv(self) -> None:
         """
-        Lit le CSV depuis `settings.DATA_PATH` et le stocke dans self.df.
+        Lit le CSV depuis `settings.RAW_DATA_PATH` et le stocke dans self.df.
         Ne contient que la lecture du CSV, sans la préparation Surprise.
         """
         with self.state_lock:
             try:
                 logger.info(f"Début du chargement des données depuis {settings.RAW_DATA_PATH}...")
-                self.df = pd.read_csv(settings.RAW_DATA_PATH, dtype={'id_utilisateur': str})
+                self.df = pd.read_csv(settings.RAW_DATA_PATH, sep=",",dtype={'id_utilisateur': str})
                 self._last_update = datetime.now()
                 logger.info(f"CSV chargé: {len(self.df)} lignes.")
             except Exception as e:
