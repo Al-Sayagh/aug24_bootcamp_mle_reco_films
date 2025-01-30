@@ -1,47 +1,48 @@
 stages:
   load:
-    cmd: python app/recommend.py
+    cmd: python app/recommender.py
     deps:
     - data/raw/df_demonstration.csv
-    - app/recommend.py
+    - app/recommender.py
     outs:
     - data/processed/df_clean.csv
   prepare:
-    cmd: python app/recommend.py && python app/extract_user_info
+    cmd: python app/recommender.py && python app/extract_user_info
     deps:
     - data/processed/df_clean.csv
-    - app/recommend.py
+    - app/recommender.py
     - app/extract_user_info.py
     outs:
     - data/processed/trainset_surprise.pkl
     - data/processed/users.json
   train:
-    cmd: python app/recommend.py
+    cmd: python app/recommender.py
     deps:
     - data/processed/svd_optimization.json
     - data/processed/trainset_surprise.pkl
-    - app/recommend.py
+    - app/recommender.py
     outs:
     - models/svd_model.joblib.dvc
   evaluate:
-    cmd: python app/recommend.py
+    cmd: python app/recommender.py
     deps:
     - models/svd_model.joblib.dvc
     - data/processed/trainset_surprise.pkl
-    - app/recommend.py
+    - app/recommender.py
     metrics:
     - metrics/model_metrics.json
   optimize:
     cmd: python app/gridsearch.py
     deps:
     - data/processed/df_clean.csv
+    - data/processed/trainset_surprise.pkl
     - python app/gridsearch.py
     outs:
     - data/processed/svd_optimization.json
   predict:
-    cmd: python app/recommend.py
+    cmd: python app/recommender.py
     deps:
-    - models/svd_model.joblib
+    - models/svd_model.joblib.dvc
     - data/processed/trainset_surprise.pkl
-    - python app/recommend.py
+    - python app/recommender.py
     outs:
