@@ -7,7 +7,7 @@ stages:
     outs:
     - data/processed/df_clean.csv
   prepare:
-    cmd: python app/recommender.py && python app/extract_user_info
+    cmd: python app/recommender.py && python app/extract_user_info.py
     deps:
     - data/processed/df_clean.csv
     - app/recommender.py
