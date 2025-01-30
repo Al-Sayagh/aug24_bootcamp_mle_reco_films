@@ -2,14 +2,14 @@
 CREER L'ENVIRONNEMENT
 '''
 
-# Lien pour clonage du repo github
+# Cloner le repo github à partir de ce lien
 https://github.com/Al-Sayagh/aug24_bootcamp_mle_reco_films.git
 
-# Chemin vers le dossier du projet
-/Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films/
-
-# Chemin vers la base de données brutes
+# Télécharger la base de données brutes (csv)
 https://drive.google.com/file/d/1G6h50Pj-OsYL_S6GxCTy9PHThupnAyD2/view?usp=sharing
+
+# Accéder au dossier du projet et y copier le csv
+/Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films/
 
 # Créer un nouvel environnement virtuel 
 mamba create -n mlopsproject python=3.9 -y
@@ -30,22 +30,46 @@ CONFIGURER LE DVC
 
 # Installer les librairies
 pip install dvc
-#pip install "dvc[s3]"
+pip install "dvc[s3]"
 
 # Initialiser le dvc
 dvc init -f
 
 # Configurer le DagsHub DVC remote
-#dvc remote add origin s3://dvc
-#dvc remote modify origin endpointurl https://dagshub.com/LamPaturle-AI/examen-dvc.s3
+dvc remote add origin s3://dvc
+dvc remote modify origin endpointurl https://dagshub.com/Al-Sayagh/aug24_bootcamp_mle_reco_films.s3
 
-#dvc remote modify origin --local access_key_id 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
-#dvc remote modify origin --local secret_access_key 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
+dvc remote modify origin --local access_key_id 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
+dvc remote modify origin --local secret_access_key 8a08ba4d3a9988a7f9c1664a9c97b2354641694d
 
-#dvc remote default origin
+dvc remote default origin
 
-# Créer le fichier paramètres
-#touch params.yaml
+# Créer le fichier dvc.yaml
+    # Ajout des stages selon le format suivant:
+
+    stages:
+  gridsearch:
+    cmd: python src/models/grid_search.py
+    deps:
+    - data/processed/X_train_scaled.csv
+    - data/processed/y_train.csv
+    - src/models/grid_search.py
+    - params.yaml
+    outs:
+    - models/best_params.pkl
+    params:
+    - model.n_estimators
+    - model.max_depth
+    - model.learning_rate
+  train:
+    cmd: python src/models/training.py
+    deps:
+    - data/processed/X_train_scaled.csv
+    - data/processed/y_train.csv
+    - models/best_params.pkl
+    - src/models/training.py
+    outs:
+    - models/gbr_model.pkl
 
 # Ajouter le dataset sous versioning DVC
 dvc add data/raw/df_demonstration.csv
@@ -54,7 +78,7 @@ dvc add data/raw/df_demonstration.csv
 git add data/raw/dataset.csv.dvc .gitignore
 git commit -m "Ajout du dataset sous DVC"
 
-# Pousser les données vers un stockage distant (S3, Google Drive...)
+# Pousser les données vers le stockage distant (S3)
 dvc push
 
 
@@ -71,7 +95,7 @@ pip install pydantic-settings
 # Gérer les conflits
 pip install numpy==1.24.3 # Reinstall (i.e downgrade numpy)
 
-# Configurer le chemin python (si nécessaire):
+# Configurer le chemin python (si nécessaire, aussi très utile pour le debug):
 export PYTHONPATH="/Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films:$PYTHONPATH"
 
 # Lancer main.py pour debug
@@ -108,11 +132,11 @@ pip install pytest
 - test_authentication.py
 - test_authorization.py
 
-# Créer les fichiers test de fonctionnalité
+# Créer les fichiers test de fonctionnalités
 - test_get_recommendations.py
 - test_get_metrics.py
-- test_get_users.py
 - test_gridsearch.py
+- test_get_users.py
 - test_refresh_system.py
 
 # Lancer les tests
@@ -160,18 +184,19 @@ wget https://dst-de.s3.eu-west-3.amazonaws.com/airflow_fr/eval/docker-compose.ya
 - Ajouter le Dockerfile en contexte
 - Changer les volumes pour data/raw et data/processed et ajouter les volumes nécessaires
 - Eliminer la section dashboard
+- Eliminer la section flower (dans l'intention d'utiliser Prometheus et Grafana)
 - Changer le nom de l'image
 - Ajouter le PYTHONPATH
-- Enelever les exemples dans l'interface web
+- Enlever les exemples dans l'interface web
 
 # Créer le Dockerfile-airflow
-- Changement de l'image
+- Changement de l'image pour python-3.9
 - Workaround pour installation de surprise
 - Installation des dépendances via requirements.txt
 - Nettoyage pour optimiser la taille de l'image
 
 # Créer les dossiers nécessaires et modifier les permissions
-mkdir ./dags ./logs ./plugins ./metrics
+mkdir ./dags ./logs ./plugins ./metrics 
 
 sudo chmod -R 777 dags/
 sudo chmod -R 777 logs/
@@ -183,7 +208,7 @@ echo -e "AIRFLOW_UID=$(id -u)\nAIRFLOW_GID=0" > .env
 
 # Initialiser airflow
 docker compose build --no-cache
-docker compose up airflow-init
+docker compose up airflow-init (seulement la première fois)
 
 # Lancer les services airflow
 docker compose up -d
@@ -206,7 +231,7 @@ http://localhost:8080
 - Définir les fonctions et les groupes
 - Ajouter le PYTHONPATH
 
-# Créer le fichier requirements.txt
+# Créer le fichier requirements.txt simplifié
 pip install pipreqs
 pipreqs ./ --force
 
@@ -214,6 +239,18 @@ pipreqs ./ --force
 '''
 CONTENAIRISER AVEC DOCKER
 '''
+
+# Modifier le fichier docker-compose
+- Ajouter le service mlflow sur le port 8081 avec des volumes pour les métadonnées et les artifacts
+- Ajouter le service fast api sur le port 8000 en ajustant les dépendances
+- Passer les identifiants en variables d'environnement
+- Ajouter un mot de passe Redis
+- Ajouter des healthchecks à mlflow et fast api
+- Mettre airflow-init en premier
+
+
+# Ajuster les permissions des dossiers MLflow
+sudo chown -R 500:500 ./mlruns ./mlartifacts
 
 
 '''
@@ -225,17 +262,17 @@ pip install bentoml
 
 # Lancer les scripts et l'enregistrement du modèle dans bentoml models
 
-# Vérifier l'enregistrement du modèle(tag="recommendations_surpriseSVD:<tag>")
+# Vérifier l'enregistrement du modèle(tag="recommender_surpriseSVD:<tag>")
 bentoml models list
 
 # Charger le modèle
-bentoml models get recommendations_surpriseSVD:latest
+bentoml models get recommender_surpriseSVD:latest
 
 # Changer de dossier
 cd src
 
 # Démarrer le service
-bentoml serve service.py:surpriseSVD_service --reload
+bentoml serve service.py:recommender_service --reload
 
 # Tester le service (autre console)
 mamba activate mlopsproject
@@ -249,17 +286,17 @@ bentoml build
 bentoml list
 
 # Créer l'image Docker
-bentoml containerize surpriseSVD_service:yphqrhgvrwlgfvrd -t surpriseSVD_service:latest
+bentoml containerize recommender_service:latest
 
 # Vérifier la création de l'image
 docker images
 
 # Tester l'image
-docker run --rm -p 3000:3000 surpriseSVD_service:latest
-docker run -it surpriseSVD_service:latest bash
+docker run --rm -p 3000:3000 recommender_service:latest
+docker run -it recommender_service:latest bash
 
 # Compresser l'image Docker
-docker save -o ./bento_image.tar surpriseSVD_service:latest
+docker save -o ./bento_image.tar recommender_service:latest
 
 # Tester à nouveau le service
 bentoml serve service.py:surpriseSVD_service --reload
