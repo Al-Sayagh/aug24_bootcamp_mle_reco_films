@@ -33,7 +33,7 @@ def load_raw_data():
     out_path = settings.RAW_DATA_PATH
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(out_path, index=False)
-    print(f"Fichier brut sauvegardé : {out_path}")
+    print(f"Fichier csv sauvegardé : {out_path}")
 
     # Préparer les données
 def prepare_data_for_surprise():
