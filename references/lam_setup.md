@@ -352,11 +352,8 @@ CLEANING
 - ajouter un README pour tous les fichiers (demander à ChatGPT ce que fait chaque fichier en copiant/collant son contenu)
 - Mettre à jour le README principal avec la structure finalisée
 
-# DVC : 
-- ajouter le modèle (.joblib) au tracking DVC 
-
 # Code :
-- Séparer le recommender en trois ou 4 scripts séparés (load, train, evaluate, predict)
+- Séparer le recommender en scripts séparés (load, train, evaluate, predict)
 - montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus (random 5)
 
 # FASTAPI : 
