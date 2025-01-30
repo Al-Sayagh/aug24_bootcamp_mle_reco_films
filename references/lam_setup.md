@@ -5,11 +5,11 @@ CREER L'ENVIRONNEMENT
 # Cloner le repo github à partir de ce lien
 https://github.com/Al-Sayagh/aug24_bootcamp_mle_reco_films.git
 
-# Télécharger la base de données brutes (csv)
+# Télécharger la base de données brutes (csv) ou alors par DVC une fois celui-ci établi
 https://drive.google.com/file/d/1G6h50Pj-OsYL_S6GxCTy9PHThupnAyD2/view?usp=sharing
 
 # Accéder au dossier du projet et y copier le csv
-/Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films/
+cd /Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films/
 
 # Créer un nouvel environnement virtuel 
 mamba create -n mlopsproject python=3.9 -y
@@ -74,9 +74,18 @@ dvc remote default origin
 # Ajouter le dataset sous versioning DVC
 dvc add data/raw/df_demonstration.csv
 
-# Commit du suivi du dataset dans Git
+# Faire un commit pour le suivi du dataset dans Git
 git add data/raw/dataset.csv.dvc .gitignore
 git commit -m "Ajout du dataset sous DVC"
+
+# Faire un commit pour le suivi du modèle
+git rm -r --cached 'models/svd_model.joblib'
+git commit -m "stop tracking models/svd_model.joblib"
+
+dvc add models/svd_model.joblib
+
+git add models/svd_model.joblib.dvc .gitignore
+git commit -m "Ajout du modèle sous DVC"
 
 # Pousser les données vers le stockage distant (S3)
 dvc push
@@ -95,10 +104,10 @@ pip install pydantic-settings
 # Gérer les conflits
 pip install numpy==1.24.3 # Reinstall (i.e downgrade numpy)
 
-# Configurer le chemin python (si nécessaire, aussi très utile pour le debug):
+# Configurer le chemin python (si nécessaire, aussi très utile pour le debugging):
 export PYTHONPATH="/Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films:$PYTHONPATH"
 
-# Lancer main.py pour debug
+# Lancer main.py pour debugging
 python app/main.py
 
 
@@ -150,7 +159,7 @@ CONFIGURER ML FLOW
 # Installer les librairies
 pip install mlflow
 
-# Lancer gridsearch.py pour debug
+# Lancer gridsearch.py pour debugging
 python app/gridsearch.py
 
 # Configurer le serveur de tracking
@@ -187,13 +196,13 @@ wget https://dst-de.s3.eu-west-3.amazonaws.com/airflow_fr/eval/docker-compose.ya
 - Eliminer la section flower (dans l'intention d'utiliser Prometheus et Grafana)
 - Changer le nom de l'image
 - Ajouter le PYTHONPATH
-- Enlever les exemples dans l'interface web
+- Enlever les exemples de dags dans l'interface web
 
 # Créer le Dockerfile-airflow
 - Changement de l'image pour python-3.9
 - Workaround pour installation de surprise
 - Installation des dépendances via requirements.txt
-- Nettoyage pour optimiser la taille de l'image
+- Nettoyage du workaround pour optimiser la taille de l'image
 
 # Créer les dossiers nécessaires et modifier les permissions
 mkdir ./dags ./logs ./plugins ./metrics 
@@ -241,20 +250,23 @@ CONTENAIRISER AVEC DOCKER
 '''
 
 # Modifier le fichier docker-compose
-- Ajouter le service mlflow sur le port 8081 avec des volumes pour les métadonnées et les artifacts
-- Ajouter le service fast api sur le port 8000 en ajustant les dépendances
+- Ajouter le service mlflow sur le port 8081 avec une image mlflow et des volumes pour les métadonnées et les artifacts, ainsi que postgres sql comme base de donnée
+- Ajouter le service fast api sur le port 8000 avec une image custom et en ajustant les dépendances. 
+- Ajouter les volumes nécessaires en vérifiant les chemins pour mlflow et fastapi
 - Passer les identifiants en variables d'environnement
 - Ajouter un mot de passe Redis
 - Ajouter des healthchecks à mlflow et fast api
-- Mettre airflow-init en premier
+- Mettre airflow-init en premier dans l'ordre des services airflow
+- Ajouter la MLFLOW_TRACKING_URI: http://mlflow:8081 à airflow et fastapi
 
 
 # Ajuster les permissions des dossiers MLflow
-sudo chown -R 500:500 ./mlruns ./mlartifacts
+sudo chmod -R 777 ./mlruns
+sudo chmod -R 777 ./mlartifacts
 
 
 '''
-DEPLOYER AVEC BENTOML
+DEPLOYER LE MODELE AVEC BENTOML
 '''
 
 # Installer les librairies
@@ -303,6 +315,12 @@ bentoml serve service.py:surpriseSVD_service --reload
 
 
 '''
+AJOUTER UNE COUCHE D"ABSTRACTION AVEC ZEN ML
+'''
+
+
+
+'''
 METTRE EN PLACE UN DASHBOARD GRAFANA
 '''
 
@@ -313,12 +331,12 @@ CONFIGURER LES ALERTES
 
 
 '''
-SYSTEME DE RE-ENTRAINEMENT AUTOMATISE
+METTRE EN PLACE UN SYSTEME DE RE-ENTRAINEMENT AUTOMATISE
 '''
 
 
 '''
-KUBERNETES
+GERER LE SCALING AVEC KUBERNETES
 '''
 
 
@@ -330,14 +348,30 @@ KUBERNETES
 CLEANING
 '''
 
-# Ajouter l'expérience predict à MLflow == get recommendations (artefacts: log et JSON de recommandations)
+# Github : 
+- ajouter un README pour tous les fichiers (demander à ChatGPT ce que fait chaque fichier en copiant/collant son contenu)
+- Mettre à jour le README principal avec la structure finalisée
 
-# Ajouter une partie sécurisation à l'API (authentification, autorisation)
+# DVC : 
+- ajouter le modèle (.joblib) au tracking DVC 
 
-# Ajouter extract_film_info
-- comme endpoint dans l'api
-- comme task dans Airflow 
+# Code :
+- Séparer le recommender en trois ou 4 scripts séparés (load, train, evaluate, predict)
+- montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus (random 5)
 
-# Montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus
+# FASTAPI : 
+- ajouter les Pytest, si possible pour chaque endpoint
+- ajouter une partie sécurisation à l'API (authentification, autorisation)
+- ajouter extract_film_info comme endpoint dans l'api
 
-# Intégrer Zen ML
+# MLflow : ajouter une expérience "predict" 
+- predict_svd_surprise
+- artefacts: log et JSON de recommandations
+- utilisation de BentoML, remplacement de la fonction de recommandation dans airflow par la fonction BentoML?
+
+# Airflow : 
+- remplacer la tâche de recommandation par une tâche BentoML?
+- ajouter la tâche extract_film_info
+
+# Docker
+- Renommer toutes les images et containers pour que tout soit clair au premier coup d'oeil
