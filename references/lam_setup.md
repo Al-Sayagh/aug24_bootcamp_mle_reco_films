@@ -369,7 +369,7 @@ CLEANING
 - Mettre à jour le README principal avec la structure finalisée
 
 # Code :
-- Séparer le recommender en scripts séparés (load, train, evaluate, predict)
+- Séparer le recommender (et sûrement les autres aussi) en scripts séparés (load, prepare, train, evaluate, predict)
 - montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus (random 5)
 
 # FASTAPI : 
