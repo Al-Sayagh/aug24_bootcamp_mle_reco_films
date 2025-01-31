@@ -5,7 +5,7 @@ from pydantic import BaseModel
 class UserInput(BaseModel):
     user_id: int
 
-reco_runner = bentoml.sklearn.get("recommender_model:latest").to_runner()
+recommender_runner = bentoml.sklearn.get("recommender_model:latest").to_runner()
 
 svc = bentoml.Service(
     name="recommender_service",
