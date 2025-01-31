@@ -6,18 +6,22 @@ Ce repo est le repo de notre projet ML Ops "Système de recommandation de films"
 Structure du Projet
 ------------
 
-    ├── LICENSE            
-    ├── README.md          <- README principal pour les développeurs de ce projet.
-    │
-    ├── app                <- Code source à utiliser pour ce projet.
-    │
+   
+    ├── api                <- Fichiers pour l'api FastAPI.
+    │       
     ├── dags               <- Fichier DAG pour Airflow. 
     │
     ├── data               <- Doit être sur votre ordinateur mais pas sur Github (seulement dans .gitignore).
     │   ├── processed      <- Data sets finaux et canoniques à utiliser pour la modélisation.
     │   └── raw            <- Data dump originel et immutable (non modifiable).
-    │                         
+    │
+    ├── logs               <- Fichiers de logging. 
+    │                    
     ├── metrics            <- Sauvegarde des métriques du modèle. 
+    │
+    ├── mlartifacts        <- Artifacts MLflow. 
+    │    
+    ├── mlruns             <- Métadonnées ML Flow. 
     │ 
     ├── models             <- Sauvegarde du modèle. 
     │
@@ -25,9 +29,12 @@ Structure du Projet
     │
     ├── references         <- Dictionnaires, manuels, liens, et autres documents explicatifs.
     │
-    ├── tests              <- Fichiers test pour Pytest. 
-    │
-    ├── requirements.txt   <- Fichier requirements pour reproduire l'environnement d'analyse.
+    ├── src                <- Code source à utiliser pour ce projet.
+    │ 
+    ├── LICENSE            
+    ├── README.md          <- README pour la structure du projet.
+    │    
+    ├── requirements.txt   <- Fichier requirements pour reproduire l'environnement.
     │   
 
 --------
