@@ -1,0 +1,24 @@
+# Ignorer les données locales (elles seront montées via des volumes)
+data/
+logs/
+metrics/
+models/
+
+# Fichiers de cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignorer les fichiers de versionnement
+.dvc/
+.dvc
+.git
+.gitignore
+.DS_Store
+
+# Ignorer les fichiers de documentation
+notebooks/
+references/
+LICENSE.md
+README.md
