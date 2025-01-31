@@ -11,10 +11,10 @@ from airflow.utils.task_group import TaskGroup
 from airflow.operators.python_operator import PythonOperator
 
 # Import local
-from app.config import settings
-from app.recommender import MovieRecommender
-from app.extract_user_info import main as main_extract_user_info
-from app.gridsearch import main as main_gridsearch
+from src.config import settings
+from src.recommender import MovieRecommender
+from src.extract_user_info import main as main_extract_user_info
+from src.gridsearch import main as main_gridsearch
 
 # Ajouter le PYTHONPATH
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
