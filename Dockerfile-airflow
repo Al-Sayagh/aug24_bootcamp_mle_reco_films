@@ -1,6 +1,10 @@
+# Partir d'une image Python 3.9
 FROM apache/airflow:2.8.1-python3.9
+
+# Passer en root pour pouvoir installer des paquets système
 USER root
-# Installer des outils supplémentaires pour pouvoir faire tourner scikit-surprise
+
+# Installer les paquets système nécessaires pour scikit-surprise
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     build-essential \
@@ -13,11 +17,21 @@ RUN apt-get update && \
     gfortran && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-COPY requirements.txt /tmp/requirements.txt
-USER airflow
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Nettoyer pour réduire la taille de l'image (optionnel)
+# Copier le fichier requirements.txt dans /tmp
+COPY requirements.txt /tmp/requirements.txt
+
+# Passer en airflow pour pouvoir installer les librairies
+USER airflow
+
+# Installer les dépendances
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade "protobuf==4.21.12"
+
+# Copier le code source de l'application
+COPY ./src /opt/airflow/src
+
+# Purger les paquets de build pour réduire la taille de l'image (optionnel) en passant d'un utilisateur à l'autre
 USER root
 RUN apt-get purge -y \
     build-essential \
