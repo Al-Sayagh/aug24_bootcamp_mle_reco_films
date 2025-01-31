@@ -8,7 +8,7 @@ https://github.com/Al-Sayagh/aug24_bootcamp_mle_reco_films.git
 # Télécharger la base de données brutes (csv) ou alors par DVC une fois celui-ci établi
 https://drive.google.com/file/d/1G6h50Pj-OsYL_S6GxCTy9PHThupnAyD2/view?usp=sharing
 
-# Accéder au dossier du projet et y copier le csv
+# Créer et accéder au dossier du projet et y copier le csv
 cd /Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films/
 
 # Créer un nouvel environnement virtuel 
@@ -57,20 +57,7 @@ dvc remote default origin
     - params.yaml
     outs:
     - models/best_params.pkl
-    params:
-    - model.n_estimators
-    - model.max_depth
-    - model.learning_rate
-  train:
-    cmd: python src/models/training.py
-    deps:
-    - data/processed/X_train_scaled.csv
-    - data/processed/y_train.csv
-    - models/best_params.pkl
-    - src/models/training.py
-    outs:
-    - models/gbr_model.pkl
-
+    
 # Ajouter le dataset sous versioning DVC
 dvc add data/raw/df_demonstration.csv
 
@@ -108,7 +95,7 @@ pip install numpy==1.24.3 # Reinstall (i.e downgrade numpy)
 export PYTHONPATH="/Users/lampaturle/Desktop/SWITCH_PROJECT/Datascientest/aug24_bootcamp_mle_reco_films:$PYTHONPATH"
 
 # Lancer main.py pour debugging
-python app/main.py
+python api/main.py
 
 
 '''
@@ -160,10 +147,10 @@ CONFIGURER ML FLOW
 pip install mlflow
 
 # Lancer gridsearch.py pour debugging
-python app/gridsearch.py
+python src/gridsearch.py
 
-# Configurer le serveur de tracking
-mlflow server --host 0.0.0.0 --port 8081
+# Configurer le serveur de tracking (en arrière plan)
+mlflow server --host 0.0.0.0 --port 8081 &
 
     # Arrêter le serveur de tracking
     ^C
@@ -191,7 +178,7 @@ wget https://dst-de.s3.eu-west-3.amazonaws.com/airflow_fr/eval/docker-compose.ya
 
 # Modifier le fichier pour adaptation au projet 
 - Ajouter le Dockerfile en contexte
-- Changer les volumes pour data/raw et data/processed et ajouter les volumes nécessaires
+- Changer les volumes pour data/raw et data/processed et ajouter les volumes nécessaires en faisant bien attention aux chemins
 - Eliminer la section dashboard
 - Eliminer la section flower (dans l'intention d'utiliser Prometheus et Grafana)
 - Changer le nom de l'image
@@ -203,6 +190,7 @@ wget https://dst-de.s3.eu-west-3.amazonaws.com/airflow_fr/eval/docker-compose.ya
 - Workaround pour installation de surprise
 - Installation des dépendances via requirements.txt
 - Nettoyage du workaround pour optimiser la taille de l'image
+- RUN pip install --no-cache-dir --upgrade "protobuf==4.21.12" en tant que user airflow (conflit)
 
 # Créer les dossiers nécessaires et modifier les permissions
 mkdir ./dags ./logs ./plugins ./metrics 
@@ -215,9 +203,10 @@ sudo chmod -R 777 metrics/
 # Configurer les paramètres airflow
 echo -e "AIRFLOW_UID=$(id -u)\nAIRFLOW_GID=0" > .env
 
-# Initialiser airflow
+# Initialiser la base de données airflow (seulement la première fois)
+docker compose up airflow-init 
+
 docker compose build --no-cache
-docker compose up airflow-init (seulement la première fois)
 
 # Lancer les services airflow
 docker compose up -d
@@ -246,23 +235,35 @@ pipreqs ./ --force
 
 
 '''
-CONTENAIRISER AVEC DOCKER
+CONTENEURISER AVEC DOCKER
 '''
 
 # Modifier le fichier docker-compose
-- Ajouter le service mlflow sur le port 8081 avec une image mlflow et des volumes pour les métadonnées et les artifacts, ainsi que postgres sql comme base de donnée
-- Ajouter le service fast api sur le port 8000 avec une image custom et en ajustant les dépendances. 
+- Ajouter un network commun aux conteneurs qui doivent communiquer entre eux
+- Ajouter le service mlflow sur le port 8081 avec une image mlflow créée à partir d'une image déjà existante et des volumes pour les métadonnées et les artifacts. Définir les paramètres backend-store-uri et default-artifact-root
+- Ajouter le service fast api sur le port 8000 avec une image custom et en ajustant les dépendances. Utiliser un Dockerfile custom pour gérer surprise
+- Modifier la structure du projet et la fonction main
 - Ajouter les volumes nécessaires en vérifiant les chemins pour mlflow et fastapi
-- Passer les identifiants en variables d'environnement
-- Ajouter un mot de passe Redis
-- Ajouter des healthchecks à mlflow et fast api
+- Passer les identifiants en variables d'environnement .env.docker (attention au _ pour les credentials airflow)
+- Ajouter des healthchecks, surtout à fast api
 - Mettre airflow-init en premier dans l'ordre des services airflow
 - Ajouter la MLFLOW_TRACKING_URI: http://mlflow:8081 à airflow et fastapi
-
+- Gestion du warning git
 
 # Ajuster les permissions des dossiers MLflow
 sudo chmod -R 777 ./mlruns
 sudo chmod -R 777 ./mlartifacts
+
+# Changer le nom des images
+docker tag mlflow:latest surprise-mlflow:latest
+docker tag sha256:3315fb2b4701dac3fd50b6921df999fec2ee76e8bfcecdbc0daef096281b35ce surprise-airflow:2.8.1
+
+# Vérifier ce qu'il se passe dans un conteneur
+docker compose logs fastapi --follow
+
+# Vérifier les ports
+sudo lsof -i :8000
+sudo lsof -i :8081
 
 
 '''
@@ -317,6 +318,21 @@ bentoml serve service.py:surpriseSVD_service --reload
 '''
 AJOUTER UNE COUCHE D"ABSTRACTION AVEC ZEN ML
 '''
+
+# Installer les librairies
+pip install "zenml[templates,server]"
+
+# Initialiser le projet
+zenml init --template starter --template-with-defaults
+
+# Démarrer le serveur
+zenml up
+
+    # Fermer le dashboard
+    zenml down
+
+# Pipeline
+[Extraction des données] --> [Préparation des données] --> [Entraînement] --> [Évaluation] --> [Déploiement]
 
 
 
