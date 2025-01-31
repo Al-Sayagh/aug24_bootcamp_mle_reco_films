@@ -1,48 +1,49 @@
 stages:
-  load:
-    cmd: python app/recommender.py
-    deps:
-    - data/raw/df_demonstration.csv
-    - app/recommender.py
-    outs:
-    - data/processed/df_clean.csv
-  prepare:
-    cmd: python app/recommender.py && python app/extract_user_info.py
-    deps:
-    - data/processed/df_clean.csv
-    - app/recommender.py
-    - app/extract_user_info.py
-    outs:
-    - data/processed/trainset_surprise.pkl
-    - data/processed/users.json
-  train:
-    cmd: python app/recommender.py
-    deps:
-    - data/processed/svd_optimization.json
-    - data/processed/trainset_surprise.pkl
-    - app/recommender.py
-    outs:
-    - models/svd_model.joblib.dvc
-  evaluate:
-    cmd: python app/recommender.py
-    deps:
-    - models/svd_model.joblib.dvc
-    - data/processed/trainset_surprise.pkl
-    - app/recommender.py
-    metrics:
-    - metrics/model_metrics.json
-  optimize:
-    cmd: python app/gridsearch.py
-    deps:
-    - data/processed/df_clean.csv
-    - data/processed/trainset_surprise.pkl
-    - python app/gridsearch.py
-    outs:
-    - data/processed/svd_optimization.json
-  predict:
-    cmd: python app/recommender.py
-    deps:
-    - models/svd_model.joblib.dvc
-    - data/processed/trainset_surprise.pkl
-    - python app/recommender.py
-    outs:
+ load:
+  cmd: python src/recommender.py load data/raw/df_demonstration.csv data/processed/df_clean.csv
+  deps:
+  - data/raw/df_demonstration.csv
+  - src/recommender.py
+  outs:
+  - data/processed/df_clean.csv
+ prepare:
+  cmd: python src/recommender.py prepare data/processed/df_clean.csv data/processed/trainset_surprise.pkl data/processed/users.json
+  deps:
+  - data/processed/df_clean.csv
+  - src/recommender.py
+  - src/extract_user_info.py 
+  outs:
+  - data/processed/trainset_surprise.pkl
+  - data/processed/users.json
+ optimize:
+  cmd: python src/gridsearch.py data/processed/df_clean.csv data/processed/trainset_surprise.pkl data/processed/svd_optimization.json
+  deps:
+  - data/processed/df_clean.csv
+  - data/processed/trainset_surprise.pkl
+  - src/gridsearch.py
+  outs:
+  - data/processed/svd_optimization.json
+ train:
+  cmd: python src/recommender.py train data/processed/svd_optimization.json data/processed/trainset_surprise.pkl models/svd_model.joblib
+  deps:
+  - data/processed/svd_optimization.json
+  - data/processed/trainset_surprise.pkl
+  - src/recommender.py
+  outs:
+  - models/svd_model.joblib.dvc 
+ evaluate:
+  cmd: python src/recommender.py evaluate models/svd_model.joblib data/processed/trainset_surprise.pkl metrics/model_metrics.json
+  deps:
+  - models/svd_model.joblib.dvc
+  - data/processed/trainset_surprise.pkl
+  - src/recommender.py
+  metrics:
+  - metrics/model_metrics.json
+ predict:
+  cmd: python src/recommender.py predict models/svd_model.joblib data/processed/trainset_surprise.pkl data/predictions/predictions.csv
+  deps:
+  - models/svd_model.joblib.dvc
+  - data/processed/trainset_surprise.pkl
+  - src/recommender.py
+  outs:
+  #- data/processed/recommendations.json
