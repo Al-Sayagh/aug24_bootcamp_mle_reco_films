@@ -71,7 +71,9 @@ csv provenant du projet précédent regroupant des données de IMDb et MovieLens
     Pipeline complet (load, prepare, train, evaluate, optimize, predict)
     Graph View
 - Docker
-    Containers sur Docker Desktop (fastapi, mlflow, airflow)
+    Containers sur Docker Desktop (fastapi, airflow)
+
+    
 - (BentoML)
 - (ZenML)
 - (Prometheus & Grafana)
