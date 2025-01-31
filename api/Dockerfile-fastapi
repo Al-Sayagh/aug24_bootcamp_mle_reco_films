@@ -1,0 +1,50 @@
+# Partir d'une image Python légère
+FROM python:3.9-slim
+
+# Créer le dossier de travail
+WORKDIR /app
+
+# Passer en root pour pouvoir installer des paquets système
+USER root
+
+# Installer les paquets système nécessaires pour scikit-surprise
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    libpython3-dev \
+    libatlas-base-dev \
+    gcc \
+    liblapack-dev \
+    libblas-dev \
+    gfortran && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copier le fichier requirements.txt dans /tmp
+COPY requirements.txt /tmp/requirements.txt
+
+# Installer dépendances
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Purger les paquets de build pour réduire la taille de l'image (optionnel)
+RUN apt-get purge -y \
+    build-essential \
+    python3-dev \
+    libpython3-dev \
+    gcc && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copier le code à la source
+COPY api/ api/
+COPY src/ src/
+
+# Créer les répertoires nécessaires
+RUN mkdir -p data/raw data/processed models metrics logs mlruns mlartifacts
+
+# Exposer le port de l'application
+EXPOSE 8000
+
+# Démarrer l'application avec Uvicorn
+CMD ["python", "api/main.py"]
