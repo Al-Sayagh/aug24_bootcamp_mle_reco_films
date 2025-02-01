@@ -11,7 +11,7 @@ Structure du Projet
     │       
     ├── dags               <- Fichier DAG pour Airflow. 
     │
-    ├── data               <- Doit être sur votre ordinateur mais pas sur Github (seulement dans .gitignore).
+    ├── data               
     │   ├── processed      <- Data sets finaux et canoniques à utiliser pour la modélisation.
     │   └── raw            <- Data dump originel et immutable (non modifiable).
     │
@@ -27,12 +27,14 @@ Structure du Projet
     │
     ├── notebooks          <- Notebooks Jupyter, scripts, rapport d'analyse exploratoire des données.
     │
+    ├── plugins            <- Plugins Airflow (non utilisé pour l'instant).
+    │
     ├── references         <- Dictionnaires, manuels, liens, et autres documents explicatifs.
     │
     ├── src                <- Code source à utiliser pour ce projet.
     │ 
     ├── LICENSE            
-    ├── README.md          <- README pour la structure du projet.
+    ├── README             <- README.md pour la structure du projet.
     │    
     ├── requirements.txt   <- Fichier requirements pour reproduire l'environnement.
     │   
