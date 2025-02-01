@@ -273,7 +273,7 @@ DEPLOYER LE MODELE AVEC BENTOML
 # Installer les librairies
 pip install bentoml
 
-# Lancer les scripts et l'enregistrement du modèle dans bentoml models
+# Lancer le script train avec l'enregistrement du modèle dans bentoml models
 
 # Vérifier l'enregistrement du modèle(tag="recommender_surpriseSVD:<tag>")
 bentoml models list
@@ -316,7 +316,7 @@ bentoml serve service.py:surpriseSVD_service --reload
 
 
 '''
-AJOUTER UNE COUCHE D"ABSTRACTION AVEC ZEN ML
+AJOUTER UNE COUCHE D'ABSTRACTION AVEC ZEN ML
 '''
 
 # Installer les librairies
@@ -364,27 +364,37 @@ GERER LE SCALING AVEC KUBERNETES
 CLEANING
 '''
 
-# Github : 
-- ajouter un README pour tous les fichiers (demander à ChatGPT ce que fait chaque fichier en copiant/collant son contenu)
-- Mettre à jour le README principal avec la structure finalisée
+# Pres
+- Demander à l"AI un tableau récapitulatif et comparatif de ce que font les différents outils dans notre projet
 
-# Code :
-- Séparer le recommender (et sûrement les autres aussi) en scripts séparés (load, prepare, train, evaluate, predict)
-- montrer aussi les films préférés (déjà notés) et les recommandations hors des sentiers battus (random 5)
+# Code
+- Intégration BentoML
+- Intégration ZenML ?
+- Ajouter un enregistrement des prédictions à la fin du recommender ?
+    - JSON pour un utilisateur particulier OU un CSV avec des prédictions sur tout le dataframe (suivi par dvc)
+
+# Github : DOCUMENTATION = ATTENDRE LUNDI
+- Mettre à jour le README principal avec la structure finalisée
+- Créer un README d'instructions pour l'installation de tous les services 
+- Ajouter un README pour tous les fichiers avec du code py, yaml, dockerfile, etc. (demander à l'AI ce que fait chaque fichier en copiant/collant son contenu)
+
+# DVC
+- Ajouter recommendations.json ou predictions.csv au shema grâce au fichier dvc.yaml (uncomment)
 
 # FASTAPI : 
-- ajouter les Pytest, si possible pour chaque endpoint
-- ajouter une partie sécurisation à l'API (authentification, autorisation)
-- ajouter extract_film_info comme endpoint dans l'api
+- Ajouter les Pytest, si possible pour chaque endpoint
+- Ajouter une partie sécurisation à l'API (authentification, autorisation)
+- Ajouter extract_film_info comme endpoint dans l'api (puis au dvc.yaml et au DAG)
 
 # MLflow : ajouter une expérience "predict" 
-- predict_svd_surprise
-- artefacts: log et JSON de recommandations
-- utilisation de BentoML, remplacement de la fonction de recommandation dans airflow par la fonction BentoML?
+- Experiment predict_svd_surprise
+- Artefacts: recommender.log et JSON ou CSV de recommandations
 
 # Airflow : 
-- remplacer la tâche de recommandation par une tâche BentoML?
-- ajouter la tâche extract_film_info
+- Remplacer la tâche de recommandation par une tâche BentoML ?
+- Ajouter la tâche extract_film_info ?
+- Ajouter la tâche refresh_system ?
 
-# Docker
-- Renommer toutes les images et containers pour que tout soit clair au premier coup d'oeil
+# Code (optionnel) :
+- Refactoriser le code pour le séparer en scripts qui correspondent exactement à nos étapes (load, prepare, train, evaluate, optimize, predict)
+- Montrer en plus des recommandations les films préférés (déjà notés) et les recommandations hors des sentiers battus (random 5)
