@@ -3,7 +3,7 @@ TO DO / CLEANING
 '''
 
 # Github : DOCUMENTATION = ATTENDRE LUNDI ET MARDI
-- Mettre à jour la structure finalisée dans le README principal (notamment effacer les WIP)
+- Mettre à jour la structure finalisée dans le README principal (notamment effacer ou mettre à jour les WIP)
 - Mettre à jour le fichier requirements.txt
 - Créer un README d'instructions pour l'installation de tous les services (brouillon disponible == references/WIP_setup.md) 
 - Ajouter un README pour chaque fichier avec du code py, yaml, dockerfile, etc. (demander à l'IA générative ce que fait chaque fichier en copiant/collant son contenu)
